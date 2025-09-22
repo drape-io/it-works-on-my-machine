@@ -14,7 +14,7 @@ This repository contains **14 intentionally flaky tests** across 3 languages, de
 - Flakiness detection systems
 - Test result analysis tools
 
-The flakiness is built into utility classes, making the tests themselves simple while demonstrating various failure patterns.
+The flakiness is built into utility classes using probability-based failures, making the tests simple while demonstrating realistic failure patterns.
 
 ## Quick Start
 
@@ -230,28 +230,28 @@ jobs:
 ### Example Pattern
 ```python
 # Python
-def test_network_timeout():
-    """Fails ~30% due to built-in timeout simulation"""
-    result = NetworkSimulator.simulate_request(failure_rate=30, timeout_ms=1000)
-    assert result['status'] == 200
+def test_moderate_success_80_percent():
+    """Passes 80% of the time - moderate flakiness."""
+    assert random_success(0.80)
 ```
 
 ```go
 // Go
-func TestNetworkTimeout(t *testing.T) {
-    result, err := network.SimulateRequest(30, 1000, "https://api.example.com")
+func TestModerateSuccess80Percent(t *testing.T) {
+    success, err := probability.RandomSuccess(0.80)
     if err != nil {
-        t.Fatal(err)
+        t.Fatalf("Error in RandomSuccess: %v", err)
     }
-    assert.Equal(t, 200, result.Status)
+    if !success {
+        t.Fatalf("Random failure at 80%% success rate")
+    }
 }
 ```
 
 ```typescript
 // TypeScript
-test('network timeout - fails ~30% due to simulation', async () => {
-  const result = await NetworkSimulator.simulateRequest(30, 1000);
-  expect(result.status).toBe(200);
+test('moderate success 80% - moderate flakiness', () => {
+  expect(randomSuccess(0.80)).toBe(true);
 });
 ```
 
@@ -277,35 +277,55 @@ it-works-on-my-machine/
 └── README.md                  # This file
 ```
 
+## Automated Flaky Test Demonstration
+
+This repository includes automated PR creation that demonstrates flaky test behavior:
+
+- **Scheduled PRs**: Created every 30 minutes via GitHub Actions
+- **Automated Testing**: Each PR triggers flaky tests with retry logic
+- **Auto-merge**: PRs merge when all tests eventually pass
+- **Data Collection**: Tracks retry patterns and success rates over time
+
+### Manual Testing
+```bash
+# Run tests multiple times to see flakiness
+just test-flaky python 5
+just test-flaky go 10
+just test-flaky ts 3
+
+# Run until success (with Ctrl+C support)
+just run-until-success python
+```
+
 ## Contributing
 
-1. **Add New Test Categories**: Implement in all 3 languages consistently
-2. **Maintain Patterns**: Keep utility classes containing flakiness, tests simple
-3. **Update Documentation**: Keep README and `flakytests.md` in sync
-4. **Test Your Changes**: Run `just test-all` before submitting
+1. **Maintain Probability Patterns**: Keep tests simple with flakiness in utilities
+2. **Test Across Languages**: Ensure consistent behavior in Python, Go, and TypeScript
+3. **Verify Flakiness**: Run `just test-flaky <language> 10` to confirm realistic failure rates
+4. **Update Documentation**: Keep README accurate with actual test counts
 
 ## Troubleshooting
 
 ### Common Issues
 
 **Tests are too flaky/not flaky enough**
-- Adjust failure rates in utility class methods
-- Modify probability thresholds in test logic
+- Adjust probability rates in utility functions (e.g., change 0.80 to 0.85)
+- Current rates: 90%, 80%, 70% for realistic CI behavior
 
 **Dependencies not installing**
 - Python: Ensure `uv` is installed and updated
 - Go: Check Go version (1.21+ required)
 - TypeScript: Verify Node.js version (20+ required)
 
-**Tests hanging or timing out**
-- Check for deadlock simulation tests
-- Adjust timeout values in network simulation
+**Tests not showing flakiness**
+- Verify random number generation is working
+- Run tests multiple times: `just test-flaky python 10`
 
 ### Getting Help
 
-- Check `just env` for environment setup
-- Review `just test-stats` for test counts
 - Use `just help` for available commands
+- Check GitHub Actions for automated PR examples
+- Review test logs for retry patterns
 
 ## License
 
