@@ -121,20 +121,20 @@ npm run test:ci
 
 ## Test Suites
 
-### 🐍 Python Tests (35 tests)
+### 🐍 Python Tests (4 tests)
 - **Framework**: pytest with pytest-cov
-- **Files**: 5 test files in `python/tests/`
-- **Utilities**: Custom classes in `python/src/flaky_lib/`
+- **File**: `python/tests/test_probability.py`
+- **Utilities**: Probability functions in `python/src/it_works_on_my_machine/`
 
-### 🐹 Go Tests (46 tests)
+### 🐹 Go Tests (5 tests)
 - **Framework**: Standard `testing` package
-- **Files**: 6 test files in `go/tests/`
-- **Utilities**: Packages in `go/pkg/`
+- **File**: `go/tests/probability_test.go`
+- **Utilities**: Probability package in `go/pkg/probability/`
 
-### 📘 TypeScript Tests (68 tests)
+### 📘 TypeScript Tests (5 tests)
 - **Framework**: Jest with coverage
-- **Files**: 6 test files in `typescript/tests/`
-- **Utilities**: Classes in `typescript/src/`
+- **File**: `typescript/tests/probability.test.ts`
+- **Utilities**: Probability functions in `typescript/src/probability.ts`
 
 ## Flaky Test Categories
 
@@ -271,21 +271,22 @@ test('network timeout - fails ~30% due to simulation', async () => {
 
 ```
 it-works-on-my-machine/
-├── python/                 # Python flaky tests (35 tests)
-│   ├── src/flaky_lib/     # Utility classes with built-in flakiness
-│   ├── tests/             # Test files
-│   └── pyproject.toml     # uv configuration
-├── go/                    # Go flaky tests (46 tests)
-│   ├── pkg/               # Utility packages
-│   ├── tests/             # Test files
-│   └── go.mod             # Go module
-├── typescript/            # TypeScript flaky tests (68 tests)
-│   ├── src/               # Utility classes
-│   ├── tests/             # Test files
-│   └── package.json       # npm configuration
-├── reports/               # Test reports and coverage
-├── justfile              # Command runner recipes
-└── README.md             # This file
+├── python/                    # Python flaky tests (4 tests)
+│   ├── src/it_works_on_my_machine/  # Probability utility functions
+│   ├── tests/                 # test_probability.py
+│   └── pyproject.toml         # uv configuration
+├── go/                        # Go flaky tests (5 tests)
+│   ├── pkg/probability/       # Probability utility package
+│   ├── tests/                 # probability_test.go
+│   └── go.mod                 # Go module
+├── typescript/                # TypeScript flaky tests (5 tests)
+│   ├── src/                   # probability.ts utility functions
+│   ├── tests/                 # probability.test.ts
+│   └── package.json           # npm configuration
+├── .github/workflows/         # Automated PR creation and testing
+├── runs.txt                   # Automated run counter
+├── justfile                   # Command runner recipes
+└── README.md                  # This file
 ```
 
 ## Contributing
