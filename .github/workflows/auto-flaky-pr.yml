@@ -99,29 +99,6 @@ jobs:
         echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
         echo "🕒 Timestamp: $TIMESTAMP"
 
-    - name: Delete existing branch if it exists
-      run: |
-        git push origin --delete ${{ env.PR_BRANCH }} 2>/dev/null || echo "Branch ${{ env.PR_BRANCH }} doesn't exist"
-
-    - name: Create new branch and commit changes
-      run: |
-        git checkout -b ${{ env.PR_BRANCH }}
-        git add runs.txt
-        git commit -m "🤖 Automated flaky test run #${{ steps.read_count.outputs.new }}
-
-        Run count updated from ${{ steps.read_count.outputs.current }} to ${{ steps.read_count.outputs.new }}
-        Timestamp: ${{ steps.timestamp.outputs.timestamp }}
-
-        This PR demonstrates:
-        - Flaky test behavior (75%, 85%, 95% pass rates)
-        - Auto-retry mechanisms in CI/CD
-        - Automated PR creation and merging
-
-        Tests will retry until they pass, then auto-merge! 🎯"
-
-    - name: Push branch
-      run: |
-        git push origin ${{ env.PR_BRANCH }}
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v6
@@ -169,3 +146,4 @@ jobs:
           flaky-test-demo
           data-collection
         branch: ${{ env.PR_BRANCH }}-${{ steps.read_count.outputs.new }}
+        delete-branch: true
