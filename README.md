@@ -1,14 +1,14 @@
 # It Works On My Machine 🤷‍♂️
 
-> A comprehensive monorepo of intentionally flaky tests for demonstrating testing tools and methodologies across Python, Go, and TypeScript.
+> A monorepo of intentionally flaky tests for demonstrating testing tools and methodologies across Python, Go, and TypeScript.
 
-[![Tests](https://img.shields.io/badge/tests-149%20flaky%20tests-red)](./flakytests.md)
+[![Tests](https://img.shields.io/badge/tests-14%20flaky%20tests-red)](#test-suites)
 [![Languages](https://img.shields.io/badge/languages-Python%20%7C%20Go%20%7C%20TypeScript-blue)](#test-suites)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green)](./LICENSE)
 
 ## Overview
 
-This repository contains **149 intentionally flaky tests** across 3 languages, designed to help test:
+This repository contains **14 intentionally flaky tests** across 3 languages, designed to help test:
 - Testing frameworks and tools
 - CI/CD retry mechanisms  
 - Flakiness detection systems
