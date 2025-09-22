@@ -59,6 +59,7 @@ jobs:
       run: just ${{ matrix.install_cmd }}
     
     - name: Run ${{ matrix.language }} tests with retries
+      id: test_with_retries
       uses: nick-fields/retry@v3
       with:
         timeout_minutes: 15
@@ -67,8 +68,13 @@ jobs:
         command: just ${{ matrix.test_cmd }}
         shell: bash
         on_retry_command: |
-          echo "🔄 Retry attempt for ${{ matrix.language }} - flaky behavior expected!"
+          echo "🔄 Retry attempt $GITHUB_RUN_ATTEMPT for ${{ matrix.language }} - flaky behavior expected!"
           echo "📊 This demonstrates real-world test flakiness patterns"
+    
+    - name: Log test completion
+      if: always()
+      run: |
+        echo "📊 ${{ matrix.language }} test completed with outcome: ${{ steps.test_with_retries.outcome }}"
     
     - name: Upload ${{ matrix.language }} coverage
       uses: actions/upload-artifact@v4
@@ -84,24 +90,24 @@ jobs:
     needs: [test]
     if: always()
     steps:
-    - name: Generate test summary
+    - name: Generate test summary  
       run: |
         echo "## 🎯 Flaky Test Results Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Language | Result | Max Retries Used |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|--------|------------------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🐍 Python | ${{ needs.test.result }} | Up to 10 attempts |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🐹 Go | ${{ needs.test.result }} | Up to 10 attempts |" >> $GITHUB_STEP_SUMMARY  
-        echo "| 📘 TypeScript | ${{ needs.test.result }} | Up to 10 attempts |" >> $GITHUB_STEP_SUMMARY
+        echo "| Language | Result | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 🐍 Python | ${{ needs.test.result }} | See job logs for retry details |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🐹 Go | ${{ needs.test.result }} | See job logs for retry details |" >> $GITHUB_STEP_SUMMARY  
+        echo "| 📘 TypeScript | ${{ needs.test.result }} | See job logs for retry details |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
-        echo "- **Pass rates**: 75%, 85%, 95% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
         echo "- **Retry strategy**: Up to 10 attempts with 5-second delays" >> $GITHUB_STEP_SUMMARY
         echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
-        echo "- **Expected behavior**: Most runs pass after 1-3 attempts" >> $GITHUB_STEP_SUMMARY
+        echo "- **Expected behavior**: Most runs pass after 2-4 attempts" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📈 Success Probability" >> $GITHUB_STEP_SUMMARY
-        echo "With 4 tests (1 @ 100%, 1 @ 95%, 1 @ 85%, 1 @ 75%):" >> $GITHUB_STEP_SUMMARY
-        echo "- **1 attempt**: ~61% chance all pass" >> $GITHUB_STEP_SUMMARY
-        echo "- **3 attempts**: ~95% chance all pass" >> $GITHUB_STEP_SUMMARY
+        echo "With 4 tests (1 @ 100%, 1 @ 90%, 1 @ 80%, 1 @ 70%):" >> $GITHUB_STEP_SUMMARY
+        echo "- **1 attempt**: ~50% chance all pass" >> $GITHUB_STEP_SUMMARY
+        echo "- **3 attempts**: ~88% chance all pass" >> $GITHUB_STEP_SUMMARY
         echo "- **10 attempts**: ~99.9% chance all pass" >> $GITHUB_STEP_SUMMARY

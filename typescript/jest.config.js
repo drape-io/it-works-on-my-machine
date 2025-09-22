@@ -14,7 +14,7 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/index.ts'
   ],
-  coverageDirectory: '../reports/typescript/coverage',
+  coverageDirectory: './coverage',
   coverageReporters: [
     'text',
     'lcov', 
@@ -26,7 +26,7 @@ module.exports = {
   reporters: [
     'default',
     ['jest-junit', {
-      outputDirectory: '../reports/typescript',
+      outputDirectory: './',
       outputName: 'junit.xml',
       uniqueOutputName: false,
       suiteName: 'TypeScript Flaky Tests',

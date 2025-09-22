@@ -13,36 +13,36 @@ func TestReliableProbabilityBaseline(t *testing.T) {
 	}
 }
 
-// TestHighSuccess95Percent passes 95% of the time - occasional failures
-func TestHighSuccess95Percent(t *testing.T) {
-	success, err := probability.RandomSuccess(0.95)
+// TestHighSuccess90Percent passes 90% of the time - occasional failures
+func TestHighSuccess90Percent(t *testing.T) {
+	success, err := probability.RandomSuccess(0.90)
 	if err != nil {
 		t.Fatalf("Error in RandomSuccess: %v", err)
 	}
 	if !success {
-		t.Fatalf("Random failure at 95%% success rate")
+		t.Fatalf("Random failure at 90%% success rate")
 	}
 }
 
-// TestModerateSuccess85Percent passes 85% of the time - moderate flakiness
-func TestModerateSuccess85Percent(t *testing.T) {
-	success, err := probability.RandomSuccess(0.85)
+// TestModerateSuccess80Percent passes 80% of the time - moderate flakiness
+func TestModerateSuccess80Percent(t *testing.T) {
+	success, err := probability.RandomSuccess(0.80)
 	if err != nil {
 		t.Fatalf("Error in RandomSuccess: %v", err)
 	}
 	if !success {
-		t.Fatalf("Random failure at 85%% success rate")
+		t.Fatalf("Random failure at 80%% success rate")
 	}
 }
 
-// TestLowSuccess75Percent passes 75% of the time - noticeable flakiness
-func TestLowSuccess75Percent(t *testing.T) {
-	success, err := probability.RandomSuccess(0.75)
+// TestLowSuccess70Percent passes 70% of the time - noticeable flakiness
+func TestLowSuccess70Percent(t *testing.T) {
+	success, err := probability.RandomSuccess(0.70)
 	if err != nil {
 		t.Fatalf("Error in RandomSuccess: %v", err)
 	}
 	if !success {
-		t.Fatalf("Random failure at 75%% success rate")
+		t.Fatalf("Random failure at 70%% success rate")
 	}
 }
 

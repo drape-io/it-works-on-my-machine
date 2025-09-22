@@ -13,16 +13,16 @@ describe('Probability Flaky Tests', () => {
     expect(isBaselineTest()).toBe(true);
   });
 
-  test('high success 95% - passes 95% of the time', () => {
-    expect(randomSuccess(0.95)).toBe(true);
+  test('high success 90% - passes 90% of the time', () => {
+    expect(randomSuccess(0.90)).toBe(true);
   });
 
-  test('moderate success 85% - moderate flakiness', () => {
-    expect(randomSuccess(0.85)).toBe(true);
+  test('moderate success 80% - moderate flakiness', () => {
+    expect(randomSuccess(0.80)).toBe(true);
   });
 
-  test('low success 75% - noticeable flakiness', () => {
-    expect(randomSuccess(0.75)).toBe(true);
+  test('low success 70% - noticeable flakiness', () => {
+    expect(randomSuccess(0.70)).toBe(true);
   });
 
   test('dice roll simulation - passes if we get 2-6', () => {
