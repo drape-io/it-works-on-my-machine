@@ -10,7 +10,7 @@
 
 This repository contains **14 intentionally flaky tests** across 3 languages, designed to help test:
 - Testing frameworks and tools
-- CI/CD retry mechanisms  
+- CI/CD retry mechanisms
 - Flakiness detection systems
 - Test result analysis tools
 
@@ -21,7 +21,7 @@ The flakiness is built into utility classes, making the tests themselves simple 
 ### Prerequisites
 
 - **Python 3.11+** with [uv](https://docs.astral.sh/uv/) package manager
-- **Go 1.21+** 
+- **Go 1.21+**
 - **Node.js 20+** with npm
 - **[just](https://github.com/casey/just)** command runner (optional but recommended)
 
@@ -36,7 +36,7 @@ just install
 
 # Or install manually:
 cd python && uv sync
-cd go && go mod tidy  
+cd go && go mod tidy
 cd typescript && npm install
 ```
 
@@ -50,7 +50,7 @@ just test-all
 
 # Run tests by language
 just test-python
-just test-go  
+just test-go
 just test-ts
 
 # Run with coverage
@@ -90,7 +90,7 @@ uv run pytest --cov --cov-report=html --cov-report=xml --junitxml=../reports/pyt
 uv run pytest tests/test_probability.py -v
 ```
 
-#### Go Tests  
+#### Go Tests
 ```bash
 cd go
 
@@ -112,7 +112,7 @@ cd typescript
 # Basic test run
 npm test
 
-# With coverage  
+# With coverage
 npm run test:coverage
 
 # For CI
@@ -126,14 +126,14 @@ npm run test:ci
 - **Files**: 5 test files in `python/tests/`
 - **Utilities**: Custom classes in `python/src/flaky_lib/`
 
-### 🐹 Go Tests (46 tests)  
+### 🐹 Go Tests (46 tests)
 - **Framework**: Standard `testing` package
 - **Files**: 6 test files in `go/tests/`
 - **Utilities**: Packages in `go/pkg/`
 
 ### 📘 TypeScript Tests (68 tests)
 - **Framework**: Jest with coverage
-- **Files**: 6 test files in `typescript/tests/`  
+- **Files**: 6 test files in `typescript/tests/`
 - **Utilities**: Classes in `typescript/src/`
 
 ## Flaky Test Categories
@@ -148,7 +148,7 @@ All languages implement these consistent patterns:
 - Random failures with different rates (99%, 95%, 50%, 20%, etc.)
 - Crypto-secure randomness variations
 
-### 3. ⏰ Time-Dependent Tests  
+### 3. ⏰ Time-Dependent Tests
 - Pass/fail based on current time
 - Even seconds, business hours, weekends, etc.
 
@@ -180,7 +180,7 @@ just clean
 # Lint all code
 just lint
 
-# Fix linting issues  
+# Fix linting issues
 just lint-fix
 
 # Build all projects
@@ -210,7 +210,7 @@ just help
 ### Test Reports
 All languages generate JUnit XML and coverage reports:
 - **Python**: `reports/python/junit.xml` + HTML coverage
-- **Go**: `reports/go/junit.xml` + HTML coverage  
+- **Go**: `reports/go/junit.xml` + HTML coverage
 - **TypeScript**: `reports/typescript/junit.xml` + lcov coverage
 
 ### GitHub Actions Example
@@ -249,7 +249,7 @@ def test_network_timeout():
 ```
 
 ```go
-// Go  
+// Go
 func TestNetworkTimeout(t *testing.T) {
     result, err := network.SimulateRequest(30, 1000, "https://api.example.com")
     if err != nil {
@@ -275,7 +275,7 @@ it-works-on-my-machine/
 │   ├── src/flaky_lib/     # Utility classes with built-in flakiness
 │   ├── tests/             # Test files
 │   └── pyproject.toml     # uv configuration
-├── go/                    # Go flaky tests (46 tests)  
+├── go/                    # Go flaky tests (46 tests)
 │   ├── pkg/               # Utility packages
 │   ├── tests/             # Test files
 │   └── go.mod             # Go module
@@ -303,7 +303,7 @@ it-works-on-my-machine/
 - Adjust failure rates in utility class methods
 - Modify probability thresholds in test logic
 
-**Dependencies not installing**  
+**Dependencies not installing**
 - Python: Ensure `uv` is installed and updated
 - Go: Check Go version (1.21+ required)
 - TypeScript: Verify Node.js version (20+ required)
