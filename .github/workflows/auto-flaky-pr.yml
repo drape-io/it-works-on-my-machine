@@ -2,8 +2,8 @@ name: 🤖 Automated Flaky Test PR
 
 on:
   schedule:
-    # Run every hour at minute 0
-    - cron: '0 * * * *'
+    # Run every 30 minutes
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     # Allow manual triggering for testing
 
@@ -25,19 +25,37 @@ jobs:
         run: |
           # Find existing automated PR
           pr_number=$(gh pr list --label "automated" --json number --jq '.[0].number // empty')
-          
+
           if [ -n "$pr_number" ]; then
             echo "🔄 Found existing automated PR #$pr_number"
-            
+
+            # Get PR branch name
+            pr_branch=$(gh pr view $pr_number --json headRefName --jq '.headRefName')
+            echo "📝 PR branch: $pr_branch"
+
+            # Update PR branch with latest main to satisfy branch protection
+            echo "🔄 Updating PR branch with latest main..."
+            gh pr checkout $pr_number
+            git fetch origin main
+            git merge origin/main --no-edit || {
+              echo "❌ Failed to merge main into PR branch - may have conflicts"
+              git merge --abort 2>/dev/null || true
+              echo "⚠️ Skipping merge due to conflicts, will try again next cycle"
+              exit 0
+            }
+            git push origin $pr_branch
+            echo "✅ Updated PR branch with latest main"
+
             # Check if PR is mergeable (all checks passed)
             pr_status=$(gh pr view $pr_number --json mergeStateStatus --jq '.mergeStateStatus')
-            
+
             if [ "$pr_status" = "CLEAN" ] || [ "$pr_status" = "UNSTABLE" ]; then
               echo "✅ PR #$pr_number is ready to merge"
               gh pr merge $pr_number --squash --delete-branch
               echo "🎉 Merged PR #$pr_number"
             else
               echo "⏳ PR #$pr_number not ready to merge (status: $pr_status)"
+              echo "💡 Branch updated - tests may be running, will check next cycle"
             fi
           else
             echo "📝 No existing automated PR found"
