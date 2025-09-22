@@ -1,0 +1,160 @@
+name: 🎯 Flaky Test Suite
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: 🎲 Test ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    outputs:
+      python-attempts: ${{ steps.set_results.outputs.python-attempts }}
+      go-attempts: ${{ steps.set_results.outputs.go-attempts }}
+      typescript-attempts: ${{ steps.set_results.outputs.typescript-attempts }}
+      python-outcome: ${{ steps.set_results.outputs.python-outcome }}
+      go-outcome: ${{ steps.set_results.outputs.go-outcome }}
+      typescript-outcome: ${{ steps.set_results.outputs.typescript-outcome }}
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, go, typescript]
+        include:
+          - language: python
+            setup_cmd: |
+              curl -LsSf https://astral.sh/uv/install.sh | sh
+              echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+              uv python install 3.12
+            install_cmd: install-python
+            test_cmd: test-python-coverage
+            coverage_paths: |
+              python/coverage.xml
+              python/htmlcov/
+          - language: go
+            setup_cmd: |
+              # Go is pre-installed on ubuntu-latest
+              go version
+            install_cmd: install-go
+            test_cmd: test-go-coverage
+            coverage_paths: |
+              go/coverage.out
+              go/coverage.html
+          - language: typescript
+            setup_cmd: |
+              # Node.js is pre-installed, just verify
+              node --version
+              npm --version
+            install_cmd: install-ts
+            test_cmd: test-ts-coverage
+            coverage_paths: |
+              typescript/coverage/
+              typescript/junit.xml
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up ${{ matrix.language }} environment
+      run: ${{ matrix.setup_cmd }}
+    
+    - name: Install just
+      uses: extractions/setup-just@v2
+    
+    - name: Install ${{ matrix.language }} dependencies
+      run: just ${{ matrix.install_cmd }}
+    
+    - name: Run ${{ matrix.language }} tests with retries
+      id: test_with_retries
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 10
+        retry_wait_seconds: 5
+        command: just ${{ matrix.test_cmd }}
+        shell: bash
+        on_retry_command: |
+          echo "🔄 Retry attempt $GITHUB_RUN_ATTEMPT for ${{ matrix.language }} - flaky behavior expected!"
+          echo "📊 This demonstrates real-world test flakiness patterns"
+    
+    - name: Set result outputs
+      id: set_results
+      if: always()
+      run: |
+        # Set outputs based on language
+        if [ "${{ matrix.language }}" = "python" ]; then
+          echo "python-attempts=${{ steps.test_with_retries.outputs.total_attempts }}" >> $GITHUB_OUTPUT
+          echo "python-outcome=${{ steps.test_with_retries.outcome }}" >> $GITHUB_OUTPUT
+        elif [ "${{ matrix.language }}" = "go" ]; then
+          echo "go-attempts=${{ steps.test_with_retries.outputs.total_attempts }}" >> $GITHUB_OUTPUT
+          echo "go-outcome=${{ steps.test_with_retries.outcome }}" >> $GITHUB_OUTPUT
+        elif [ "${{ matrix.language }}" = "typescript" ]; then
+          echo "typescript-attempts=${{ steps.test_with_retries.outputs.total_attempts }}" >> $GITHUB_OUTPUT
+          echo "typescript-outcome=${{ steps.test_with_retries.outcome }}" >> $GITHUB_OUTPUT
+        fi
+        echo "📊 ${{ matrix.language }} test completed with outcome: ${{ steps.test_with_retries.outcome }}"
+        echo "🔄 Total attempts: ${{ steps.test_with_retries.outputs.total_attempts }}"
+    
+    - name: Upload ${{ matrix.language }} coverage
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ${{ matrix.language }}-coverage
+        path: ${{ matrix.coverage_paths }}
+        retention-days: 30
+
+  summary:
+    name: 📊 Test Summary
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: always()
+    steps:
+    - name: Generate test summary  
+      run: |
+        echo "## 🎯 Flaky Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Language | Result | Attempts Used |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|---------------|" >> $GITHUB_STEP_SUMMARY
+        
+        # Python results
+        PYTHON_OUTCOME="${{ needs.test.outputs.python-outcome }}"
+        PYTHON_ATTEMPTS="${{ needs.test.outputs.python-attempts }}"
+        if [ "$PYTHON_OUTCOME" = "success" ]; then
+          PYTHON_STATUS="✅ Success"
+        else
+          PYTHON_STATUS="❌ Failed"
+        fi
+        echo "| 🐍 Python | $PYTHON_STATUS | ${PYTHON_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
+        
+        # Go results  
+        GO_OUTCOME="${{ needs.test.outputs.go-outcome }}"
+        GO_ATTEMPTS="${{ needs.test.outputs.go-attempts }}"
+        if [ "$GO_OUTCOME" = "success" ]; then
+          GO_STATUS="✅ Success"
+        else
+          GO_STATUS="❌ Failed"
+        fi
+        echo "| 🐹 Go | $GO_STATUS | ${GO_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
+        
+        # TypeScript results
+        TS_OUTCOME="${{ needs.test.outputs.typescript-outcome }}"
+        TS_ATTEMPTS="${{ needs.test.outputs.typescript-attempts }}"
+        if [ "$TS_OUTCOME" = "success" ]; then
+          TS_STATUS="✅ Success"
+        else
+          TS_STATUS="❌ Failed"
+        fi
+        echo "| 📘 TypeScript | $TS_STATUS | ${TS_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Retry strategy**: Up to 10 attempts with 5-second delays" >> $GITHUB_STEP_SUMMARY
+        echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
+        echo "- **Expected behavior**: Most runs pass after 2-4 attempts" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📈 Success Probability" >> $GITHUB_STEP_SUMMARY
+        echo "With 4 tests (1 @ 100%, 1 @ 90%, 1 @ 80%, 1 @ 70%):" >> $GITHUB_STEP_SUMMARY
+        echo "- **1 attempt**: ~50% chance all pass" >> $GITHUB_STEP_SUMMARY
+        echo "- **3 attempts**: ~88% chance all pass" >> $GITHUB_STEP_SUMMARY
+        echo "- **10 attempts**: ~99.9% chance all pass" >> $GITHUB_STEP_SUMMARY
