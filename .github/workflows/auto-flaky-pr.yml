@@ -23,32 +23,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Find existing automated PR with security checks
-          pr_data=$(gh pr list --label "automated" --json number,author --jq '.[0] // empty')
-
-          if [ -n "$pr_data" ] && [ "$pr_data" != "null" ]; then
-            pr_number=$(echo "$pr_data" | jq -r '.number')
-            pr_author=$(echo "$pr_data" | jq -r '.author.login')
-
-            echo "🔄 Found existing automated PR #$pr_number by @$pr_author"
-
-            # Security check: Only merge PRs created by github-actions bot or repo owner
-            if [ "$pr_author" = "github-actions[bot]" ] || [ "$pr_author" = "${{ github.repository_owner }}" ]; then
-              echo "✅ PR author verified: $pr_author"
-
-              # Check if PR is mergeable (all checks passed)
-              pr_status=$(gh pr view $pr_number --json mergeStateStatus --jq '.mergeStateStatus')
-
-              if [ "$pr_status" = "CLEAN" ] || [ "$pr_status" = "UNSTABLE" ]; then
-                echo "✅ PR #$pr_number is ready to merge"
-                gh pr merge $pr_number --squash --delete-branch
-                echo "🎉 Merged PR #$pr_number"
-              else
-                echo "⏳ PR #$pr_number not ready to merge (status: $pr_status)"
-              fi
+          # Find existing automated PR
+          pr_number=$(gh pr list --label "automated" --json number --jq '.[0].number // empty')
+          
+          if [ -n "$pr_number" ]; then
+            echo "🔄 Found existing automated PR #$pr_number"
+            
+            # Check if PR is mergeable (all checks passed)
+            pr_status=$(gh pr view $pr_number --json mergeStateStatus --jq '.mergeStateStatus')
+            
+            if [ "$pr_status" = "CLEAN" ] || [ "$pr_status" = "UNSTABLE" ]; then
+              echo "✅ PR #$pr_number is ready to merge"
+              gh pr merge $pr_number --squash --delete-branch
+              echo "🎉 Merged PR #$pr_number"
             else
-              echo "🚨 SECURITY: Refusing to merge PR from untrusted author: $pr_author"
-              echo "Only github-actions[bot] and ${{ github.repository_owner }} are allowed"
+              echo "⏳ PR #$pr_number not ready to merge (status: $pr_status)"
             fi
           else
             echo "📝 No existing automated PR found"
@@ -66,7 +55,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
     - name: Configure Git
       run: |
