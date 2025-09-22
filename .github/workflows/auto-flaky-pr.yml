@@ -92,6 +92,7 @@ jobs:
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v6
       with:
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         commit-message: "🤖 Automated flaky test run #${{ steps.read_count.outputs.new }}"
         title: "${{ env.PR_TITLE }} #${{ steps.read_count.outputs.new }}"
         body: |
