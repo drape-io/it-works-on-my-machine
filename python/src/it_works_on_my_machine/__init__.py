@@ -9,5 +9,10 @@ __version__ = "0.1.0"
 __author__ = "John"
 __email__ = "john@drape.io"
 
-# No utility classes needed - probability tests use simple random logic
-__all__ = []
+from .probability import random_success, dice_roll, is_baseline_test
+
+__all__ = [
+    "random_success",
+    "dice_roll", 
+    "is_baseline_test",
+]
