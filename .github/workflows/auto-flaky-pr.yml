@@ -21,7 +21,7 @@ jobs:
 
       - name: Merge existing automated PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           # Find existing automated PR
           pr_number=$(gh pr list --label "automated" --json number --jq '.[0].number // empty')
