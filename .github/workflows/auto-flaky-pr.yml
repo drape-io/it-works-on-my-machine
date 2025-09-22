@@ -12,24 +12,56 @@ env:
   PR_TITLE: "🤖 Automated flaky test run"
 
 jobs:
+  merge-existing-pr:
+    name: 🔄 Merge Previous PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Merge existing automated PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Find existing automated PR
+          pr_number=$(gh pr list --label "automated" --json number --jq '.[0].number // empty')
+          
+          if [ -n "$pr_number" ]; then
+            echo "🔄 Found existing automated PR #$pr_number"
+            
+            # Check if PR is mergeable (all checks passed)
+            pr_status=$(gh pr view $pr_number --json mergeStateStatus --jq '.mergeStateStatus')
+            
+            if [ "$pr_status" = "CLEAN" ] || [ "$pr_status" = "UNSTABLE" ]; then
+              echo "✅ PR #$pr_number is ready to merge"
+              gh pr merge $pr_number --squash --delete-branch
+              echo "🎉 Merged PR #$pr_number"
+            else
+              echo "⏳ PR #$pr_number not ready to merge (status: $pr_status)"
+            fi
+          else
+            echo "📝 No existing automated PR found"
+          fi
+
   create-flaky-pr:
-    name: 🎲 Create Automated Flaky Test PR
+    name: 🎲 Create New Automated Flaky Test PR
+    needs: merge-existing-pr
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
     - name: Configure Git
       run: |
         git config --global user.name "flaky-test-bot"
         git config --global user.email "flaky-test-bot@users.noreply.github.com"
-    
+
     - name: Read current run count
       id: read_count
       run: |
@@ -43,134 +75,65 @@ jobs:
         echo "new=$NEW_COUNT" >> $GITHUB_OUTPUT
         echo "📊 Current run count: $CURRENT_COUNT"
         echo "📈 New run count: $NEW_COUNT"
-    
+
     - name: Update runs.txt
       run: |
         echo "${{ steps.read_count.outputs.new }}" > runs.txt
         echo "📝 Updated runs.txt to: $(cat runs.txt)"
-    
+
     - name: Create timestamp for PR
       id: timestamp
       run: |
         TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
         echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
         echo "🕒 Timestamp: $TIMESTAMP"
-    
-    - name: Delete existing branch if it exists
-      run: |
-        git push origin --delete ${{ env.PR_BRANCH }} 2>/dev/null || echo "Branch ${{ env.PR_BRANCH }} doesn't exist"
-    
-    - name: Create new branch and commit changes
-      run: |
-        git checkout -b ${{ env.PR_BRANCH }}
-        git add runs.txt
-        git commit -m "🤖 Automated flaky test run #${{ steps.read_count.outputs.new }}
 
-        Run count updated from ${{ steps.read_count.outputs.current }} to ${{ steps.read_count.outputs.new }}
-        Timestamp: ${{ steps.timestamp.outputs.timestamp }}
-        
-        This PR demonstrates:
-        - Flaky test behavior (75%, 85%, 95% pass rates)
-        - Auto-retry mechanisms in CI/CD
-        - Automated PR creation and merging
-        
-        Tests will retry until they pass, then auto-merge! 🎯"
-    
-    - name: Push branch
-      run: |
-        git push origin ${{ env.PR_BRANCH }}
-    
+
     - name: Create Pull Request
-      id: create_pr
-      uses: actions/github-script@v7
+      uses: peter-evans/create-pull-request@v6
       with:
-        script: |
-          const { data: pr } = await github.rest.pulls.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: `${{ env.PR_TITLE }} #${{ steps.read_count.outputs.new }}`,
-            head: '${{ env.PR_BRANCH }}',
-            base: 'main',
-            body: `## 🤖 Automated Flaky Test Demonstration
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        commit-message: "🤖 Automated flaky test run #${{ steps.read_count.outputs.new }}"
+        title: "${{ env.PR_TITLE }} #${{ steps.read_count.outputs.new }}"
+        body: |
+          ## 🤖 Automated Flaky Test Demonstration
 
           **Run #${{ steps.read_count.outputs.new }}** - ${{ steps.timestamp.outputs.timestamp }}
 
           This automated PR demonstrates:
-          
+
           ### 🎯 Flaky Test Behavior
-          - Tests have **75%, 85%, and 95%** pass rates
+          - Tests have **70%, 80%, and 90%** pass rates
           - Simulates real-world test flakiness
           - Shows importance of retry strategies
-          
-          ### 🔄 Auto-Retry Mechanism  
-          - CI will retry failed tests up to **3 attempts**
+
+          ### 🔄 Auto-Retry Mechanism
+          - CI will retry failed tests up to **10 attempts**
           - Each retry is tracked in GitHub Actions API
-          - Uses \`nick-fields/retry\` action for proper logging
-          
+          - Uses `nick-fields/retry` action for proper logging
+
           ### 🤖 Automation Features
           - **Hourly schedule**: Creates PR every hour
-          - **Auto-merge**: Merges when tests pass
-          - **Run tracking**: Updates \`runs.txt\` counter
-          
+          - **Auto-merge**: Merges when tests pass and checks are clean
+          - **Run tracking**: Updates `runs.txt` counter
+
           ### 📊 Expected Behavior
           1. ✅ Tests may pass on first try (~50% chance)
-          2. 🔄 Or retry 2-3 times before passing
+          2. 🔄 Or retry 2-4 times before passing
           3. 🎉 Auto-merge when all tests green
           4. 📈 Counter increments for next run
-          
+
+          ### 📈 Data Collection
+          This PR is part of ongoing flaky test data collection to analyze:
+          - Retry patterns over time
+          - Success rates across languages
+          - CI/CD resilience strategies
+
           ---
-          *This is run #${{ steps.read_count.outputs.new }} of the automated flaky test demonstration.*`
-          });
-          
-          console.log(\`Created PR #\${pr.number}: \${pr.html_url}\`);
-          return pr.number;
-    
-    - name: Enable auto-merge for PR
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const prNumber = ${{ steps.create_pr.outputs.result }};
-          
-          // Enable auto-merge when checks pass
-          await github.rest.pulls.createReview({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            pull_number: prNumber,
-            event: 'APPROVE',
-            body: '🤖 Auto-approving flaky test demonstration PR'
-          });
-          
-          // Enable auto-merge
-          await github.graphql(`
-            mutation($pullRequestId: ID!) {
-              enablePullRequestAutoMerge(input: {
-                pullRequestId: $pullRequestId,
-                mergeMethod: SQUASH
-              }) {
-                pullRequest {
-                  autoMergeRequest {
-                    enabledAt
-                  }
-                }
-              }
-            }
-          `, {
-            pullRequestId: pr.node_id
-          });
-          
-          console.log(\`Enabled auto-merge for PR #\${prNumber}\`);
-    
-    - name: Add labels to PR
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const prNumber = ${{ steps.create_pr.outputs.result }};
-          
-          await github.rest.issues.addLabels({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: prNumber,
-            labels: ['automated', 'flaky-test-demo', 'auto-merge']
-          });
-          
-          console.log(\`Added labels to PR #\${prNumber}\`);
+          *This is run #${{ steps.read_count.outputs.new }} of the automated flaky test demonstration.*
+        labels: |
+          automated
+          flaky-test-demo
+          data-collection
+        branch: ${{ env.PR_BRANCH }}-${{ steps.read_count.outputs.new }}
+        delete-branch: true
