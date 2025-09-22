@@ -138,35 +138,23 @@ npm run test:ci
 
 ## Flaky Test Categories
 
-All languages implement these consistent patterns:
+All languages implement these consistent probability-based patterns:
 
-### 1. 🟢 Reliable Baselines
-- Always pass to ensure CI health
-- Simple `assert true` equivalents
+### 🟢 Reliable Baseline Test
+- **Always passes** (100% success rate)
+- Ensures CI pipeline health
+- Simple assertion that always succeeds
 
-### 2. 🎲 Probability-Based Tests
-- Random failures with different rates (99%, 95%, 50%, 20%, etc.)
-- Crypto-secure randomness variations
+### 🎲 Probability-Based Tests
+- **High Success** (90% pass rate) - Occasional failures
+- **Moderate Success** (80% pass rate) - Moderate flakiness
+- **Low Success** (70% pass rate) - Noticeable flakiness
+- **Dice Roll Simulation** (~83% pass rate) - Passes if roll ≥ 2
 
-### 3. ⏰ Time-Dependent Tests
-- Pass/fail based on current time
-- Even seconds, business hours, weekends, etc.
-
-### 4. 🌐 Network Simulation Tests
-- Built-in network failure simulation
-- Timeouts, connection drops, retry scenarios
-
-### 5. 🏃‍♂️ Concurrency/Async Tests
-- Race conditions and deadlock scenarios
-- Thread/goroutine/Promise timing issues
-
-### 6. 🌍 Environment-Dependent Tests
-- File system operations and permissions
-- Environment variables and platform checks
-
-### 7. 📊 Stateful Tests
-- Maintain state between test runs
-- "Pass every Nth execution" patterns
+### 🔄 Automated Retry Demonstration
+- Tests use crypto-secure randomness for realistic failure patterns
+- CI configured with up to 10 retry attempts using `nick-fields/retry@v3`
+- Demonstrates real-world flaky test behavior and retry strategies
 
 ## Utility Commands
 
