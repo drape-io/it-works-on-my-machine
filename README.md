@@ -4,7 +4,7 @@
 
 [![Tests](https://img.shields.io/badge/tests-14%20flaky%20tests-red)](#test-suites)
 [![Languages](https://img.shields.io/badge/languages-Python%20%7C%20Go%20%7C%20TypeScript-blue)](#test-suites)
-[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](./LICENSE)
 
 ## Overview
 
@@ -329,7 +329,7 @@ just run-until-success python
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE) file for details.
+Apache License 2.0 - see [LICENSE](./LICENSE) file for details.
 
 ---
 
