@@ -1,27 +1,27 @@
 # It Works On My Machine 🤷‍♂️
 
-> A monorepo of intentionally flaky tests for demonstrating testing tools and methodologies across Python, Go, and TypeScript.
+> A comprehensive monorepo of intentionally flaky tests for demonstrating testing tools and methodologies across Python, Go, and TypeScript.
 
-[![Tests](https://img.shields.io/badge/tests-14%20flaky%20tests-red)](#test-suites)
+[![Tests](https://img.shields.io/badge/tests-149%20flaky%20tests-red)](./flakytests.md)
 [![Languages](https://img.shields.io/badge/languages-Python%20%7C%20Go%20%7C%20TypeScript-blue)](#test-suites)
-[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](./LICENSE)
 
 ## Overview
 
-This repository contains **14 intentionally flaky tests** across 3 languages, designed to help test:
+This repository contains **149 intentionally flaky tests** across 3 languages, designed to help test:
 - Testing frameworks and tools
-- CI/CD retry mechanisms
+- CI/CD retry mechanisms  
 - Flakiness detection systems
 - Test result analysis tools
 
-The flakiness is built into utility classes using probability-based failures, making the tests simple while demonstrating realistic failure patterns.
+The flakiness is built into utility classes, making the tests themselves simple while demonstrating various failure patterns.
 
 ## Quick Start
 
 ### Prerequisites
 
 - **Python 3.11+** with [uv](https://docs.astral.sh/uv/) package manager
-- **Go 1.21+**
+- **Go 1.21+** 
 - **Node.js 20+** with npm
 - **[just](https://github.com/casey/just)** command runner (optional but recommended)
 
@@ -36,7 +36,7 @@ just install
 
 # Or install manually:
 cd python && uv sync
-cd go && go mod tidy
+cd go && go mod tidy  
 cd typescript && npm install
 ```
 
@@ -50,7 +50,7 @@ just test-all
 
 # Run tests by language
 just test-python
-just test-go
+just test-go  
 just test-ts
 
 # Run with coverage
@@ -90,7 +90,7 @@ uv run pytest --cov --cov-report=html --cov-report=xml --junitxml=../reports/pyt
 uv run pytest tests/test_probability.py -v
 ```
 
-#### Go Tests
+#### Go Tests  
 ```bash
 cd go
 
@@ -112,7 +112,7 @@ cd typescript
 # Basic test run
 npm test
 
-# With coverage
+# With coverage  
 npm run test:coverage
 
 # For CI
@@ -121,40 +121,52 @@ npm run test:ci
 
 ## Test Suites
 
-### 🐍 Python Tests (4 tests)
+### 🐍 Python Tests (35 tests)
 - **Framework**: pytest with pytest-cov
-- **File**: `python/tests/test_probability.py`
-- **Utilities**: Probability functions in `python/src/it_works_on_my_machine/`
+- **Files**: 5 test files in `python/tests/`
+- **Utilities**: Custom classes in `python/src/flaky_lib/`
 
-### 🐹 Go Tests (5 tests)
+### 🐹 Go Tests (46 tests)  
 - **Framework**: Standard `testing` package
-- **File**: `go/tests/probability_test.go`
-- **Utilities**: Probability package in `go/pkg/probability/`
+- **Files**: 6 test files in `go/tests/`
+- **Utilities**: Packages in `go/pkg/`
 
-### 📘 TypeScript Tests (5 tests)
+### 📘 TypeScript Tests (68 tests)
 - **Framework**: Jest with coverage
-- **File**: `typescript/tests/probability.test.ts`
-- **Utilities**: Probability functions in `typescript/src/probability.ts`
+- **Files**: 6 test files in `typescript/tests/`  
+- **Utilities**: Classes in `typescript/src/`
 
 ## Flaky Test Categories
 
-All languages implement these consistent probability-based patterns:
+All languages implement these consistent patterns:
 
-### 🟢 Reliable Baseline Test
-- **Always passes** (100% success rate)
-- Ensures CI pipeline health
-- Simple assertion that always succeeds
+### 1. 🟢 Reliable Baselines
+- Always pass to ensure CI health
+- Simple `assert true` equivalents
 
-### 🎲 Probability-Based Tests
-- **High Success** (90% pass rate) - Occasional failures
-- **Moderate Success** (80% pass rate) - Moderate flakiness
-- **Low Success** (70% pass rate) - Noticeable flakiness
-- **Dice Roll Simulation** (~83% pass rate) - Passes if roll ≥ 2
+### 2. 🎲 Probability-Based Tests
+- Random failures with different rates (99%, 95%, 50%, 20%, etc.)
+- Crypto-secure randomness variations
 
-### 🔄 Automated Retry Demonstration
-- Tests use crypto-secure randomness for realistic failure patterns
-- CI configured with up to 10 retry attempts using `nick-fields/retry@v3`
-- Demonstrates real-world flaky test behavior and retry strategies
+### 3. ⏰ Time-Dependent Tests  
+- Pass/fail based on current time
+- Even seconds, business hours, weekends, etc.
+
+### 4. 🌐 Network Simulation Tests
+- Built-in network failure simulation
+- Timeouts, connection drops, retry scenarios
+
+### 5. 🏃‍♂️ Concurrency/Async Tests
+- Race conditions and deadlock scenarios
+- Thread/goroutine/Promise timing issues
+
+### 6. 🌍 Environment-Dependent Tests
+- File system operations and permissions
+- Environment variables and platform checks
+
+### 7. 📊 Stateful Tests
+- Maintain state between test runs
+- "Pass every Nth execution" patterns
 
 ## Utility Commands
 
@@ -168,7 +180,7 @@ just clean
 # Lint all code
 just lint
 
-# Fix linting issues
+# Fix linting issues  
 just lint-fix
 
 # Build all projects
@@ -198,7 +210,7 @@ just help
 ### Test Reports
 All languages generate JUnit XML and coverage reports:
 - **Python**: `reports/python/junit.xml` + HTML coverage
-- **Go**: `reports/go/junit.xml` + HTML coverage
+- **Go**: `reports/go/junit.xml` + HTML coverage  
 - **TypeScript**: `reports/typescript/junit.xml` + lcov coverage
 
 ### GitHub Actions Example
@@ -230,28 +242,28 @@ jobs:
 ### Example Pattern
 ```python
 # Python
-def test_moderate_success_80_percent():
-    """Passes 80% of the time - moderate flakiness."""
-    assert random_success(0.80)
+def test_network_timeout():
+    """Fails ~30% due to built-in timeout simulation"""
+    result = NetworkSimulator.simulate_request(failure_rate=30, timeout_ms=1000)
+    assert result['status'] == 200
 ```
 
 ```go
-// Go
-func TestModerateSuccess80Percent(t *testing.T) {
-    success, err := probability.RandomSuccess(0.80)
+// Go  
+func TestNetworkTimeout(t *testing.T) {
+    result, err := network.SimulateRequest(30, 1000, "https://api.example.com")
     if err != nil {
-        t.Fatalf("Error in RandomSuccess: %v", err)
+        t.Fatal(err)
     }
-    if !success {
-        t.Fatalf("Random failure at 80%% success rate")
-    }
+    assert.Equal(t, 200, result.Status)
 }
 ```
 
 ```typescript
 // TypeScript
-test('moderate success 80% - moderate flakiness', () => {
-  expect(randomSuccess(0.80)).toBe(true);
+test('network timeout - fails ~30% due to simulation', async () => {
+  const result = await NetworkSimulator.simulateRequest(30, 1000);
+  expect(result.status).toBe(200);
 });
 ```
 
@@ -259,77 +271,56 @@ test('moderate success 80% - moderate flakiness', () => {
 
 ```
 it-works-on-my-machine/
-├── python/                    # Python flaky tests (4 tests)
-│   ├── src/it_works_on_my_machine/  # Probability utility functions
-│   ├── tests/                 # test_probability.py
-│   └── pyproject.toml         # uv configuration
-├── go/                        # Go flaky tests (5 tests)
-│   ├── pkg/probability/       # Probability utility package
-│   ├── tests/                 # probability_test.go
-│   └── go.mod                 # Go module
-├── typescript/                # TypeScript flaky tests (5 tests)
-│   ├── src/                   # probability.ts utility functions
-│   ├── tests/                 # probability.test.ts
-│   └── package.json           # npm configuration
-├── .github/workflows/         # Automated PR creation and testing
-├── runs.txt                   # Automated run counter
-├── justfile                   # Command runner recipes
-└── README.md                  # This file
-```
-
-## Automated Flaky Test Demonstration
-
-This repository includes automated PR creation that demonstrates flaky test behavior:
-
-- **Scheduled PRs**: Created every 30 minutes via GitHub Actions
-- **Automated Testing**: Each PR triggers flaky tests with retry logic
-- **Auto-merge**: PRs merge when all tests eventually pass
-- **Data Collection**: Tracks retry patterns and success rates over time
-
-### Manual Testing
-```bash
-# Run tests multiple times to see flakiness
-just test-flaky python 5
-just test-flaky go 10
-just test-flaky ts 3
-
-# Run until success (with Ctrl+C support)
-just run-until-success python
+├── python/                 # Python flaky tests (35 tests)
+│   ├── src/flaky_lib/     # Utility classes with built-in flakiness
+│   ├── tests/             # Test files
+│   └── pyproject.toml     # uv configuration
+├── go/                    # Go flaky tests (46 tests)  
+│   ├── pkg/               # Utility packages
+│   ├── tests/             # Test files
+│   └── go.mod             # Go module
+├── typescript/            # TypeScript flaky tests (68 tests)
+│   ├── src/               # Utility classes
+│   ├── tests/             # Test files
+│   └── package.json       # npm configuration
+├── reports/               # Test reports and coverage
+├── justfile              # Command runner recipes
+└── README.md             # This file
 ```
 
 ## Contributing
 
-1. **Maintain Probability Patterns**: Keep tests simple with flakiness in utilities
-2. **Test Across Languages**: Ensure consistent behavior in Python, Go, and TypeScript
-3. **Verify Flakiness**: Run `just test-flaky <language> 10` to confirm realistic failure rates
-4. **Update Documentation**: Keep README accurate with actual test counts
+1. **Add New Test Categories**: Implement in all 3 languages consistently
+2. **Maintain Patterns**: Keep utility classes containing flakiness, tests simple
+3. **Update Documentation**: Keep README and `flakytests.md` in sync
+4. **Test Your Changes**: Run `just test-all` before submitting
 
 ## Troubleshooting
 
 ### Common Issues
 
 **Tests are too flaky/not flaky enough**
-- Adjust probability rates in utility functions (e.g., change 0.80 to 0.85)
-- Current rates: 90%, 80%, 70% for realistic CI behavior
+- Adjust failure rates in utility class methods
+- Modify probability thresholds in test logic
 
-**Dependencies not installing**
+**Dependencies not installing**  
 - Python: Ensure `uv` is installed and updated
 - Go: Check Go version (1.21+ required)
 - TypeScript: Verify Node.js version (20+ required)
 
-**Tests not showing flakiness**
-- Verify random number generation is working
-- Run tests multiple times: `just test-flaky python 10`
+**Tests hanging or timing out**
+- Check for deadlock simulation tests
+- Adjust timeout values in network simulation
 
 ### Getting Help
 
+- Check `just env` for environment setup
+- Review `just test-stats` for test counts
 - Use `just help` for available commands
-- Check GitHub Actions for automated PR examples
-- Review test logs for retry patterns
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE) file for details.
+Apache License 2.0 - see [LICENSE](./LICENSE) file for details.
 
 ---
 
