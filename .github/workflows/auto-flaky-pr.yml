@@ -25,16 +25,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          # Debug environment and authentication
-          echo "🔍 DEBUG: Environment info"
-          echo "🔍 DEBUG: Current working directory: $(pwd)"
-          echo "🔍 DEBUG: Git remote URL: $(git config --get remote.origin.url)"
-          echo "🔍 DEBUG: GH_TOKEN is set: $([ -n "$GH_TOKEN" ] && echo "YES" || echo "NO")"
-          echo "🔍 DEBUG: Testing GitHub CLI auth..."
-          gh auth status || echo "⚠️ GitHub CLI auth check failed"
-          
           # Find existing automated PR
-          echo "🔍 DEBUG: Looking for existing automated PRs..."
           pr_number=$(gh pr list --label "automated" --json number --jq '.[0].number // empty')
 
           if [ -n "$pr_number" ]; then
@@ -46,44 +37,30 @@ jobs:
 
             # Update PR branch with latest main to satisfy branch protection
             echo "🔄 Updating PR branch with latest main..."
-            echo "🔍 DEBUG: About to checkout PR #$pr_number"
             gh pr checkout $pr_number
-            echo "✅ DEBUG: Successfully checked out PR branch"
-            
-            echo "🔍 DEBUG: About to fetch origin main"
             git fetch origin main
-            echo "✅ DEBUG: Successfully fetched origin main"
-            
-            echo "🔍 DEBUG: About to merge origin/main"
             merge_output=$(git merge origin/main --no-edit 2>&1) || {
               echo "❌ Failed to merge main into PR branch - may have conflicts"
               git merge --abort 2>/dev/null || true
               echo "⚠️ Skipping merge due to conflicts, will try again next cycle"
               exit 0
             }
-            echo "✅ DEBUG: Successfully merged origin/main"
-            echo "🔍 DEBUG: Merge output: $merge_output"
             
             # Only push if there were actual changes
             if [[ "$merge_output" != *"Already up to date"* ]]; then
-              echo "🔍 DEBUG: Changes detected, pushing to origin $pr_branch"
+              echo "📤 Pushing changes to origin $pr_branch"
               git push origin $pr_branch
-              echo "✅ DEBUG: Successfully pushed to origin $pr_branch"
             else
-              echo "✅ DEBUG: No changes needed, skipping push (already up to date)"
+              echo "✅ No changes needed, skipping push (already up to date)"
             fi
             echo "✅ Updated PR branch with latest main"
 
             # Check if PR is mergeable (all checks passed)
-            echo "🔍 DEBUG: About to check PR merge status"
             pr_status=$(gh pr view $pr_number --json mergeStateStatus --jq '.mergeStateStatus')
-            echo "📊 DEBUG: PR merge status is: $pr_status"
 
             if [ "$pr_status" = "CLEAN" ] || [ "$pr_status" = "UNSTABLE" ]; then
               echo "✅ PR #$pr_number is ready to merge"
-              echo "🔍 DEBUG: About to merge PR #$pr_number"
               gh pr merge $pr_number --squash --delete-branch
-              echo "🎉 DEBUG: Successfully merged PR #$pr_number"
               echo "🎉 Merged PR #$pr_number"
             else
               echo "⏳ PR #$pr_number not ready to merge (status: $pr_status)"
