@@ -23,7 +23,7 @@ jobs:
 
       - name: Merge existing automated PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           # Debug environment and authentication
           echo "🔍 DEBUG: Environment info"
