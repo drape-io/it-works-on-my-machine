@@ -18,10 +18,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
       - name: Merge existing automated PR
         env:
-          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Debug environment and authentication
           echo "🔍 DEBUG: Environment info"
@@ -53,17 +55,23 @@ jobs:
             echo "✅ DEBUG: Successfully fetched origin main"
             
             echo "🔍 DEBUG: About to merge origin/main"
-            git merge origin/main --no-edit || {
+            merge_output=$(git merge origin/main --no-edit 2>&1) || {
               echo "❌ Failed to merge main into PR branch - may have conflicts"
               git merge --abort 2>/dev/null || true
               echo "⚠️ Skipping merge due to conflicts, will try again next cycle"
               exit 0
             }
             echo "✅ DEBUG: Successfully merged origin/main"
+            echo "🔍 DEBUG: Merge output: $merge_output"
             
-            echo "🔍 DEBUG: About to push to origin $pr_branch"
-            git push origin $pr_branch
-            echo "✅ DEBUG: Successfully pushed to origin $pr_branch"
+            # Only push if there were actual changes
+            if [[ "$merge_output" != *"Already up to date"* ]]; then
+              echo "🔍 DEBUG: Changes detected, pushing to origin $pr_branch"
+              git push origin $pr_branch
+              echo "✅ DEBUG: Successfully pushed to origin $pr_branch"
+            else
+              echo "✅ DEBUG: No changes needed, skipping push (already up to date)"
+            fi
             echo "✅ Updated PR branch with latest main"
 
             # Check if PR is mergeable (all checks passed)
