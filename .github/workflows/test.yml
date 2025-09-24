@@ -93,20 +93,18 @@ jobs:
         echo "🔄 Triggering manual retry workflow for better failure tracking"
         echo "📊 Original run ID: ${{ github.run_id }}"
 
-        # First, test permissions and capabilities
-        echo "🧪 Testing token permissions..."
-        GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" GITHUB_REPOSITORY="${{ github.repository }}" ./test-permissions.sh
+        # Store failure info and instructions for manual retry
+        echo "💾 Storing failure information..."
+        echo "FAILED_RUN_ID=${{ github.run_id }}" >> failure_info.txt
+        echo "FAILED_LANGUAGE=${{ matrix.language }}" >> failure_info.txt
+        echo "FAILED_REF=${{ github.ref_name }}" >> failure_info.txt
+        echo "FAILED_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> failure_info.txt
         
-        echo ""
-        echo "🔄 Attempting repository dispatch..."
-        # Trigger retry via repository dispatch (works from any branch)
-        curl -L \
-          -X POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          https://api.github.com/repos/${{ github.repository }}/dispatches \
-          -d "{\"event_type\":\"retry-test\",\"client_payload\":{\"run_id\":\"${{ github.run_id }}\",\"language\":\"${{ matrix.language }}\",\"attempt_number\":\"2\",\"ref\":\"${{ github.ref_name }}\"}}"
+        echo "🔄 Manual retry required due to GitHub token limitations."
+        echo "To retry this failure:"
+        echo "1. Go to https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo "2. Click 'Re-run failed jobs' button"
+        echo "3. Or manually trigger retry workflow with run_id: ${{ github.run_id }}, language: ${{ matrix.language }}"
 
         echo "✅ Manual retry triggered"
         echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/retry.yml"
@@ -116,20 +114,25 @@ jobs:
         exit 1
 
         # Create failure summary
-        echo "## ❌ Test Failure - Retry Triggered" >> $GITHUB_STEP_SUMMARY
+        echo "## ❌ Test Failure - Manual Retry Required" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
         echo "| Language | ${{ matrix.language }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Failed Run | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
-        echo "| Retry Status | Manual retry triggered |" >> $GITHUB_STEP_SUMMARY
-        echo "| Monitor Retries | [Retry Workflow](https://github.com/${{ github.repository }}/actions/workflows/retry.yml) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Benefits of Manual Retry" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Each retry attempt creates a separate workflow run" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Better failure tracking and visibility" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Clear logs for each attempt" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ GitHub API tracks each retry as individual run" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔄 How to Retry" >> $GITHUB_STEP_SUMMARY
+        echo "1. **Re-run this job**: Click 'Re-run failed jobs' on this run" >> $GITHUB_STEP_SUMMARY
+        echo "2. **Manual retry workflow**: Go to [Actions](https://github.com/${{ github.repository }}/actions/workflows/retry.yml) → Run workflow" >> $GITHUB_STEP_SUMMARY
+        echo "   - **run_id**: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "   - **language**: \`${{ matrix.language }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "   - **attempt_number**: \`2\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Why Manual Retry?" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Each retry creates a separate workflow run for better tracking" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Clear failure visibility vs consolidated logs" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ GitHub token limitations prevent automatic dispatch from feature branches" >> $GITHUB_STEP_SUMMARY
 
     - name: Set result outputs
       id: set_results
