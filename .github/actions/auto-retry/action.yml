@@ -28,16 +28,21 @@ runs:
   steps:
     # Handle the retry execution (when triggered via repository_dispatch)
     - name: Execute retry
-      if: github.event_name == 'repository_dispatch' && github.event.action == 'auto-retry'
+      if: >
+        github.event_name == 'repository_dispatch' && 
+        github.event.action == 'auto-retry' &&
+        github.event.client_payload.attempt < fromJSON(inputs.max-attempts)
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         RUN_ID="${{ github.event.client_payload.run_id }}"
         WORKFLOW_NAME="${{ github.event.client_payload.workflow }}"
+        ATTEMPT_NUM="${{ github.event.client_payload.attempt }}"
 
         echo "🔄 Executing retry for workflow: $WORKFLOW_NAME"
         echo "📊 Original run ID: $RUN_ID"
+        echo "🔢 Attempt: $ATTEMPT_NUM/${{ inputs.max-attempts }}"
 
         # Pre-retry command
         if [ -n "${{ inputs.pre-retry-command }}" ]; then
