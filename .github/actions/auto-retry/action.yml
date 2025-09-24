@@ -25,6 +25,10 @@ inputs:
   job-name:
     description: 'Specific job name to retry (if not provided, retries all failed jobs)'
     required: false
+  force-retry:
+    description: 'Force retry even if max attempts reached (use with caution)'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -87,10 +91,12 @@ runs:
             echo "::error::Available jobs:"
             gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
               --jq '.jobs[] | "::error::  - \(.name) (ID: \(.id))"'
+            echo "::error::This might happen if the job name contains special characters or if the original run is too old"
             exit 1
           fi
         else
-          echo "🚀 No specific job requested, re-running all failed jobs"
+          echo "::warning::⚠️ No specific job name provided in dispatch payload"
+          echo "This might be an older retry format - falling back to retry all failed jobs"
 
           # Get only the failed job IDs
           FAILED_JOB_IDS=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
@@ -114,36 +120,98 @@ runs:
         echo "✅ Re-run triggered successfully"
         echo "🔗 Monitor at: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
 
+    # Show max attempts reached message
+    - name: Max attempts reached
+      if: >
+        job.status == 'failure' &&
+        github.event_name != 'repository_dispatch' &&
+        github.run_attempt >= fromJSON(inputs.max-attempts) &&
+        inputs.force-retry != 'true'
+      shell: bash
+      run: |
+        if [ "${{ inputs.warning-on-retry }}" = "true" ]; then
+          echo "::warning::🚨 Max retry attempts reached (${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+        else
+          echo "🚨 Max retry attempts reached (${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+        fi
+        echo "❌ No more retries will be attempted for this workflow run"
+        echo "💡 To retry again, manually re-run the workflow or push a new commit"
+        echo "💡 Or set 'force-retry: true' to override this limit (use with caution)"
+
+        # Add to step summary
+        echo "## 🚨 Retry Limit Reached" >> $GITHUB_STEP_SUMMARY
+        echo "- **Current Attempt:** ${{ github.run_attempt }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Max Attempts:** ${{ inputs.max-attempts }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status:** No more automatic retries will be triggered" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "💡 **To retry:** Manually re-run this workflow or push a new commit" >> $GITHUB_STEP_SUMMARY
+        echo "💡 **Or:** Set \`force-retry: true\` to override this limit (use with caution)" >> $GITHUB_STEP_SUMMARY
+
     # Detect failure and trigger retry (when used in regular jobs)
     - name: Trigger retry on failure
       if: >
         job.status == 'failure' &&
         github.event_name != 'repository_dispatch' &&
-        github.run_attempt < fromJSON(inputs.max-attempts)
+        (github.run_attempt < fromJSON(inputs.max-attempts) || inputs.force-retry == 'true')
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
-        # Determine log level
-        if [ "${{ inputs.warning-on-retry }}" = "true" ]; then
-          echo "::warning::🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+        # Check if this is a forced retry
+        if [ "${{ inputs.force-retry }}" = "true" ] && [ "${{ github.run_attempt }}" -ge "${{ inputs.max-attempts }}" ]; then
+          if [ "${{ inputs.warning-on-retry }}" = "true" ]; then
+            echo "::warning::⚠️ FORCE RETRY: Job failed, triggering retry despite max attempts (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+          else
+            echo "⚠️ FORCE RETRY: Job failed, triggering retry despite max attempts (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+          fi
+          echo "🚨 This is a forced retry beyond the normal limit - use with caution"
         else
-          echo "🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+          # Normal retry within limits
+          if [ "${{ inputs.warning-on-retry }}" = "true" ]; then
+            echo "::warning::🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+          else
+            echo "🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+          fi
         fi
 
         echo "📊 Run ID: ${{ github.run_id }}"
         echo "🌿 Ref: ${{ github.ref }}"
 
-        # Trigger retry via repository_dispatch
-        echo "🚀 Dispatching retry..."
+        # Determine the job name to retry
+        if [ -n "${{ inputs.job-name }}" ]; then
+          JOB_TO_RETRY="${{ inputs.job-name }}"
+          echo "🎯 Using provided job name: $JOB_TO_RETRY"
+        else
+          echo "🔍 Auto-detecting current job name..."
+          # Get the current job's display name from the API
+          JOB_TO_RETRY=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq ".jobs[] | select(.runner_name != null and .status == \"in_progress\" or .status == \"completed\") | select(.steps[]?.name == \"Auto retry on failure\") | .name" | head -1)
 
-        # Build JSON payload using jq
+          if [ -z "$JOB_TO_RETRY" ]; then
+            # Fallback: try to match by job steps or other criteria
+            echo "🔍 Fallback: detecting job by current context..."
+            JOB_TO_RETRY=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+              --jq ".jobs[] | select(.runner_name != null) | .name" | grep -E "Test|${{ github.job }}" | head -1)
+          fi
+
+          if [ -n "$JOB_TO_RETRY" ]; then
+            echo "✅ Auto-detected job name: $JOB_TO_RETRY"
+          else
+            echo "::warning::⚠️ Could not auto-detect job name, will retry all failed jobs"
+            JOB_TO_RETRY=""
+          fi
+        fi
+
+        # Trigger retry via repository_dispatch
+        echo "🚀 Dispatching retry for job: ${JOB_TO_RETRY:-all failed jobs}"
+
+        # Build JSON payload using jq with specific job name
         PAYLOAD=$(jq -n \
           --arg event_type "auto-retry" \
           --arg run_id "${{ github.run_id }}" \
           --arg workflow "${{ github.workflow }}" \
           --arg ref "${{ github.ref }}" \
-          --arg job_name "${{ inputs.job-name }}" \
+          --arg job_name "$JOB_TO_RETRY" \
           --argjson attempt ${{ github.run_attempt }} \
           '{
             event_type: $event_type,
