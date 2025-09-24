@@ -95,26 +95,10 @@ runs:
             exit 1
           fi
         else
-          echo "::warning::⚠️ No specific job name provided in dispatch payload"
-          echo "This might be an older retry format - falling back to retry all failed jobs"
-
-          # Get only the failed job IDs
-          FAILED_JOB_IDS=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
-            --jq '.jobs[] | select(.conclusion == "failure") | .id' | tr '\n' ' ')
-
-          if [ -n "$FAILED_JOB_IDS" ]; then
-            echo "🎯 Found failed jobs to retry: $FAILED_JOB_IDS"
-            for JOB_ID in $FAILED_JOB_IDS; do
-              JOB_NAME=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
-                --jq ".jobs[] | select(.id == $JOB_ID) | .name")
-              echo "🔄 Re-running job: $JOB_NAME (ID: $JOB_ID)"
-              gh api "repos/${{ github.repository }}/actions/jobs/$JOB_ID/rerun" -X POST
-            done
-            echo "✅ All failed jobs rerun triggered"
-          else
-            echo "::warning::⚠️ No failed jobs found in workflow run $RUN_ID"
-            echo "This might happen if jobs were cancelled or if the run is still in progress"
-          fi
+          echo "::error::❌ No specific job name provided in dispatch payload"
+          echo "::error::Cannot determine which job to retry without explicit job name"
+          echo "::error::This action requires a specific job to target for retry"
+          exit 1
         fi
 
         echo "✅ Re-run triggered successfully"
@@ -182,24 +166,48 @@ runs:
           JOB_TO_RETRY="${{ inputs.job-name }}"
           echo "🎯 Using provided job name: $JOB_TO_RETRY"
         else
-          echo "🔍 Auto-detecting current job name..."
-          # Get the current job's display name from the API
-          JOB_TO_RETRY=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
-            --jq ".jobs[] | select(.runner_name != null and .status == \"in_progress\" or .status == \"completed\") | select(.steps[]?.name == \"Auto retry on failure\") | .name" | head -1)
+          echo "🔍 Auto-detecting current job name using runner matching..."
 
-          if [ -z "$JOB_TO_RETRY" ]; then
-            # Fallback: try to match by job steps or other criteria
-            echo "🔍 Fallback: detecting job by current context..."
-            JOB_TO_RETRY=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
-              --jq ".jobs[] | select(.runner_name != null) | .name" | grep -E "Test|${{ github.job }}" | head -1)
-          fi
+          # Use the brilliant runner name approach to find the current job
+          echo "🔍 Current runner: $RUNNER_NAME"
 
-          if [ -n "$JOB_TO_RETRY" ]; then
-            echo "✅ Auto-detected job name: $JOB_TO_RETRY"
+          # Get jobs and find the one running on this specific runner
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --paginate > /tmp/jobs.json
+
+          # Find job ID by matching runner name
+          JOB_ID=$(jq -r --arg rn "$RUNNER_NAME" '
+            .jobs[]
+            | select(.runner_name == $rn)
+            | .id
+          ' /tmp/jobs.json | head -n1)
+
+          if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+            # Get the job name using the found job ID
+            JOB_TO_RETRY=$(jq -r --arg id "$JOB_ID" '
+              .jobs[]
+              | select(.id == ($id|tonumber))
+              | .name
+            ' /tmp/jobs.json)
+
+            if [ -n "$JOB_TO_RETRY" ] && [ "$JOB_TO_RETRY" != "null" ]; then
+              echo "✅ Auto-detected job name: $JOB_TO_RETRY"
+              echo "🔍 Job ID: $JOB_ID"
+            else
+              echo "::error::❌ Found job ID but couldn't get job name"
+              echo "::error::Job ID: $JOB_ID"
+              echo "::error::Please provide explicit 'job-name' input to the action"
+              exit 1
+            fi
           else
-            echo "::warning::⚠️ Could not auto-detect job name, will retry all failed jobs"
-            JOB_TO_RETRY=""
+            echo "::error::❌ Could not find job by runner name"
+            echo "::error::Unable to determine which specific job to retry"
+            echo "::error::Please provide explicit 'job-name' input to the action"
+            exit 1
           fi
+
+          # Cleanup
+          rm -f /tmp/jobs.json
         fi
 
         # Trigger retry via repository_dispatch
