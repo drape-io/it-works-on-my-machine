@@ -87,6 +87,7 @@ jobs:
 
         # Trigger the manual retry workflow
         gh workflow run retry.yml \
+          --ref "${{ github.ref }}" \
           -f run_id="${{ github.run_id }}" \
           -f language="${{ matrix.language }}" \
           -f attempt_number="2"
