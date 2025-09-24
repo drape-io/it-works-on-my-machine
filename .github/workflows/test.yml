@@ -13,7 +13,7 @@ jobs:
     name: 🎲 Test ${{ matrix.language }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # Required for repository_dispatch
       actions: write
     outputs:
       python-attempts: ${{ steps.set_results.outputs.python-attempts }}
