@@ -1,0 +1,46 @@
+name: 'Auto Retry Job'
+description: 'Automatically retry failed jobs using GitHub run rerun'
+author: 'drape-io'
+
+inputs:
+  max-attempts:
+    description: 'Maximum retry attempts'
+    required: false
+    default: '3'
+  retry-workflow:
+    description: 'Workflow file to use for retries'
+    required: false
+    default: 'retry.yml'
+
+runs:
+  using: composite
+  steps:
+    - name: Check for retry conditions
+      if: always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Check if any previous step failed and we're under retry limit
+        SHOULD_RETRY="false"
+        
+        # Look for any failed steps in the job
+        if [ "${{ job.status }}" = "failure" ] && [ ${{ github.run_attempt }} -lt ${{ inputs.max-attempts }} ]; then
+          SHOULD_RETRY="true"
+        fi
+        
+        if [ "$SHOULD_RETRY" = "true" ]; then
+          echo "🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+          echo "📊 Run ID: ${{ github.run_id }}"
+          
+          # Trigger retry workflow
+          gh workflow run ${{ inputs.retry-workflow }} -f run_id="${{ github.run_id }}"
+          
+          echo "✅ Retry triggered successfully"
+          echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/${{ inputs.retry-workflow }}"
+          
+          # Fail the job for proper status indication
+          exit 1
+        else
+          echo "ℹ️ No retry needed (job succeeded or max attempts reached)"
+        fi

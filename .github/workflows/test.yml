@@ -69,76 +69,37 @@ jobs:
       run: just ${{ matrix.install_cmd }}
 
     - name: Run ${{ matrix.language }} tests
-      id: test_single_attempt
       run: just ${{ matrix.test_cmd }}
       continue-on-error: true
-
-    - name: Debug step states
-      if: always()
-      run: |
-        echo "🔍 DEBUGGING STEP STATES"
-        echo "Test step outcome: ${{ steps.test_single_attempt.outcome }}"
-        echo "Test step conclusion: ${{ steps.test_single_attempt.conclusion }}"
-        echo "Run attempt: ${{ github.run_attempt }}"
-        echo "Run attempt check: ${{ fromJSON(github.run_attempt) < 5 }}"
     
-    - name: Debug failure condition
-      if: failure()
-      run: |
-        echo "🚨 failure() condition is TRUE"
-        echo "This step only runs if failure() evaluates to true"
-    
-    - name: Debug success condition  
-      if: success()
-      run: |
-        echo "✅ success() condition is TRUE"
-        echo "This step only runs if success() evaluates to true"
-    
-    - name: Trigger automatic re-run
-      if:
-        ${{ steps.test_single_attempt.outcome == 'failure' && fromJSON(github.run_attempt) < 5}}
-      env:
-        GH_REPO: ${{ github.repository }}
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        echo "❌ Test failed for ${{ matrix.language }} (attempt ${{ github.run_attempt }}/5)"
-        echo "🔄 Triggering automatic re-run of this same workflow..."
-        echo "📊 Run ID: ${{ github.run_id }}"
-
-        # Trigger rerun workflow to re-run this exact same workflow run
-        gh workflow run retry.yml -f run_id="${{ github.run_id }}"
-
-        echo "✅ Re-run triggered - this will retry the same workflow run"
-
+    - name: Auto retry on failure
+      uses: ./.github/actions/auto-retry
+      with:
+        max-attempts: 5
 
     - name: Set result outputs
       id: set_results
       if: always()
       run: |
         # Set outputs based on language
-        # Determine outcome based on exit code
-        if [ "${{ steps.test_single_attempt.outputs.TEST_EXIT_CODE }}" = "0" ]; then
+        # Determine outcome based on job status
+        if [ "${{ job.status }}" = "success" ]; then
           OUTCOME="success"
         else
           OUTCOME="failure"
         fi
 
         if [ "${{ matrix.language }}" = "python" ]; then
-          echo "python-attempts=1" >> $GITHUB_OUTPUT
+          echo "python-attempts=${{ github.run_attempt }}" >> $GITHUB_OUTPUT
           echo "python-outcome=$OUTCOME" >> $GITHUB_OUTPUT
         elif [ "${{ matrix.language }}" = "go" ]; then
-          echo "go-attempts=1" >> $GITHUB_OUTPUT
+          echo "go-attempts=${{ github.run_attempt }}" >> $GITHUB_OUTPUT
           echo "go-outcome=$OUTCOME" >> $GITHUB_OUTPUT
         elif [ "${{ matrix.language }}" = "typescript" ]; then
-          echo "typescript-attempts=1" >> $GITHUB_OUTPUT
+          echo "typescript-attempts=${{ github.run_attempt }}" >> $GITHUB_OUTPUT
           echo "typescript-outcome=$OUTCOME" >> $GITHUB_OUTPUT
         fi
-        echo "📊 ${{ matrix.language }} test completed with outcome: $OUTCOME"
-        if [ "$OUTCOME" = "failure" ]; then
-          echo "🔄 Manual retry workflow triggered for better failure tracking"
-        else
-          echo "✅ Test passed on first attempt - no retry needed"
-        fi
+        echo "📊 ${{ matrix.language }} test completed with outcome: $OUTCOME (attempt ${{ github.run_attempt }})"
 
     - name: Upload ${{ matrix.language }} coverage
       uses: actions/upload-artifact@v4
