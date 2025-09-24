@@ -65,18 +65,45 @@ jobs:
     - name: Install ${{ matrix.language }} dependencies
       run: just ${{ matrix.install_cmd }}
     
-    - name: Run ${{ matrix.language }} tests with retries
-      id: test_with_retries
-      uses: nick-fields/retry@v3
-      with:
-        timeout_minutes: 15
-        max_attempts: 10
-        retry_wait_seconds: 5
-        command: just ${{ matrix.test_cmd }}
-        shell: bash
-        on_retry_command: |
-          echo "🔄 Retry attempt $GITHUB_RUN_ATTEMPT for ${{ matrix.language }} - flaky behavior expected!"
-          echo "📊 This demonstrates real-world test flakiness patterns"
+    - name: Run ${{ matrix.language }} tests (single attempt)
+      id: test_single_attempt
+      run: just ${{ matrix.test_cmd }}
+      continue-on-error: true
+    
+    - name: Trigger manual retry on failure
+      if: failure() && steps.test_single_attempt.outcome == 'failure'
+      env:
+        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        echo "❌ Test failed for ${{ matrix.language }}"
+        echo "🔄 Triggering manual retry workflow for better failure tracking"
+        echo "📊 Original run ID: ${{ github.run_id }}"
+        
+        # Trigger the manual retry workflow
+        gh workflow run retry.yml \
+          -f run_id="${{ github.run_id }}" \
+          -f language="${{ matrix.language }}" \
+          -f attempt_number="2"
+        
+        echo "✅ Manual retry triggered"
+        echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/retry.yml"
+        
+        # Create failure summary
+        echo "## ❌ Test Failure - Retry Triggered" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Language | ${{ matrix.language }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Failed Run | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Retry Status | Manual retry triggered |" >> $GITHUB_STEP_SUMMARY
+        echo "| Monitor Retries | [Retry Workflow](https://github.com/${{ github.repository }}/actions/workflows/retry.yml) |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Benefits of Manual Retry" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Each retry attempt creates a separate workflow run" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Better failure tracking and visibility" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Clear logs for each attempt" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ GitHub API tracks each retry as individual run" >> $GITHUB_STEP_SUMMARY
     
     - name: Set result outputs
       id: set_results
@@ -84,17 +111,21 @@ jobs:
       run: |
         # Set outputs based on language
         if [ "${{ matrix.language }}" = "python" ]; then
-          echo "python-attempts=${{ steps.test_with_retries.outputs.total_attempts }}" >> $GITHUB_OUTPUT
-          echo "python-outcome=${{ steps.test_with_retries.outcome }}" >> $GITHUB_OUTPUT
+          echo "python-attempts=1" >> $GITHUB_OUTPUT
+          echo "python-outcome=${{ steps.test_single_attempt.outcome }}" >> $GITHUB_OUTPUT
         elif [ "${{ matrix.language }}" = "go" ]; then
-          echo "go-attempts=${{ steps.test_with_retries.outputs.total_attempts }}" >> $GITHUB_OUTPUT
-          echo "go-outcome=${{ steps.test_with_retries.outcome }}" >> $GITHUB_OUTPUT
+          echo "go-attempts=1" >> $GITHUB_OUTPUT
+          echo "go-outcome=${{ steps.test_single_attempt.outcome }}" >> $GITHUB_OUTPUT
         elif [ "${{ matrix.language }}" = "typescript" ]; then
-          echo "typescript-attempts=${{ steps.test_with_retries.outputs.total_attempts }}" >> $GITHUB_OUTPUT
-          echo "typescript-outcome=${{ steps.test_with_retries.outcome }}" >> $GITHUB_OUTPUT
+          echo "typescript-attempts=1" >> $GITHUB_OUTPUT
+          echo "typescript-outcome=${{ steps.test_single_attempt.outcome }}" >> $GITHUB_OUTPUT
         fi
-        echo "📊 ${{ matrix.language }} test completed with outcome: ${{ steps.test_with_retries.outcome }}"
-        echo "🔄 Total attempts: ${{ steps.test_with_retries.outputs.total_attempts }}"
+        echo "📊 ${{ matrix.language }} test completed with outcome: ${{ steps.test_single_attempt.outcome }}"
+        if [ "${{ steps.test_single_attempt.outcome }}" = "failure" ]; then
+          echo "🔄 Manual retry workflow triggered for better failure tracking"
+        else
+          echo "✅ Test passed on first attempt - no retry needed"
+        fi
     
     - name: Upload ${{ matrix.language }} coverage
       uses: actions/upload-artifact@v4
@@ -149,12 +180,13 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
         echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Retry strategy**: Up to 10 attempts with 5-second delays" >> $GITHUB_STEP_SUMMARY
+        echo "- **Retry strategy**: Manual retry workflow with separate runs" >> $GITHUB_STEP_SUMMARY
         echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
-        echo "- **Expected behavior**: Most runs pass after 2-4 attempts" >> $GITHUB_STEP_SUMMARY
+        echo "- **Expected behavior**: Failures trigger manual retry workflow" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📈 Success Probability" >> $GITHUB_STEP_SUMMARY
-        echo "With 4 tests (1 @ 100%, 1 @ 90%, 1 @ 80%, 1 @ 70%):" >> $GITHUB_STEP_SUMMARY
-        echo "- **1 attempt**: ~50% chance all pass" >> $GITHUB_STEP_SUMMARY
-        echo "- **3 attempts**: ~88% chance all pass" >> $GITHUB_STEP_SUMMARY
-        echo "- **10 attempts**: ~99.9% chance all pass" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔄 Manual Retry Benefits" >> $GITHUB_STEP_SUMMARY
+        echo "- **Separate runs**: Each retry creates its own workflow run" >> $GITHUB_STEP_SUMMARY
+        echo "- **Better tracking**: GitHub API tracks each attempt individually" >> $GITHUB_STEP_SUMMARY
+        echo "- **Clear logs**: Each retry has isolated logs and artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- **Improved visibility**: Easier to see failure patterns and success rates" >> $GITHUB_STEP_SUMMARY
+        echo "- **Manual control**: Can trigger retries manually via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
