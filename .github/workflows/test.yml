@@ -10,6 +10,9 @@ jobs:
   test:
     name: 🎲 Test ${{ matrix.language }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     outputs:
       python-attempts: ${{ steps.set_results.outputs.python-attempts }}
       go-attempts: ${{ steps.set_results.outputs.go-attempts }}
@@ -72,13 +75,18 @@ jobs:
         just ${{ matrix.test_cmd }}
         exit_code=$?
         echo "TEST_EXIT_CODE=$exit_code" >> $GITHUB_OUTPUT
-        exit $exit_code
-      continue-on-error: true
+        if [ $exit_code -eq 0 ]; then
+          echo "✅ Tests passed"
+          exit 0
+        else
+          echo "❌ Tests failed (exit code: $exit_code)"
+          exit 0  # Don't fail here, let the retry trigger step handle it
+        fi
 
     - name: Trigger manual retry on failure
       if: always() && steps.test_single_attempt.outputs.TEST_EXIT_CODE != '0'
       env:
-        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GH_REPO: ${{ github.repository }}
       run: |
         echo "❌ Test failed for ${{ matrix.language }}"
@@ -89,13 +97,17 @@ jobs:
         curl -L \
           -X POST \
           -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ secrets.PERSONAL_ACCESS_TOKEN }}" \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           https://api.github.com/repos/${{ github.repository }}/actions/workflows/retry.yml/dispatches \
           -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"run_id\":\"${{ github.run_id }}\",\"language\":\"${{ matrix.language }}\",\"attempt_number\":\"2\"}}"
 
         echo "✅ Manual retry triggered"
         echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/retry.yml"
+        
+        # Make the job fail to show correct status
+        echo "❌ Failing job to show correct status (retry triggered)"
+        exit 1
 
         # Create failure summary
         echo "## ❌ Test Failure - Retry Triggered" >> $GITHUB_STEP_SUMMARY
