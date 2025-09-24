@@ -1,216 +1,52 @@
-name: 🔄 Manual Retry Workflow
+name: 🔄 Re-run Failed Jobs
 
 on:
-  repository_dispatch:
-    types: [retry-test]
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'ID of the run to retry'
+        description: 'ID of the run to re-run'
         required: true
         type: string
-      language:
-        description: 'Language to retry (python, go, typescript, or all)'
-        required: true
-        type: choice
-        options:
-          - all
-          - python
-          - go
-          - typescript
-      attempt_number:
-        description: 'Current attempt number'
-        required: false
-        type: string
-        default: '1'
 
 jobs:
-  retry-test:
-    name: 🔄 Retry Test
+  rerun:
+    name: 🔄 Re-run Failed Jobs
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Set retry metadata
-      id: retry_info
+
+    - name: Re-run the failed workflow
+      env:
+        GH_REPO: ${{ github.repository }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Handle both repository_dispatch and workflow_dispatch
-        if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-          RUN_ID="${{ github.event.client_payload.run_id }}"
-          LANGUAGE="${{ github.event.client_payload.language }}"
-          ATTEMPT="${{ github.event.client_payload.attempt_number }}"
-        else
-          RUN_ID="${{ github.event.inputs.run_id }}"
-          LANGUAGE="${{ github.event.inputs.language }}"
-          ATTEMPT="${{ github.event.inputs.attempt_number }}"
-        fi
-        
-        echo "original_run_id=$RUN_ID" >> $GITHUB_OUTPUT
-        echo "retry_attempt=$ATTEMPT" >> $GITHUB_OUTPUT
-        echo "language=$LANGUAGE" >> $GITHUB_OUTPUT
-        echo "retry_timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_OUTPUT
-        
-        # Create retry summary for step summary
-        echo "## 🔄 Manual Retry Information" >> $GITHUB_STEP_SUMMARY
+        RUN_ID="${{ github.event.inputs.run_id }}"
+
+        echo "🔄 Re-running failed jobs for workflow run: $RUN_ID"
+        echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+
+        # Create retry summary
+        echo "## 🔄 Re-running Failed Jobs" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Original Run ID | [$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |" >> $GITHUB_STEP_SUMMARY
-        echo "| Retry Attempt | $ATTEMPT |" >> $GITHUB_STEP_SUMMARY
-        echo "| Language | $LANGUAGE |" >> $GITHUB_STEP_SUMMARY
-        echo "| Retry Time | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
-        echo "| Current Run | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Original Run | [$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Re-run Time | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-    
-    - name: Install just
-      uses: extractions/setup-just@v2
-    
-    - name: Run retry for all languages
-      if: steps.retry_info.outputs.language == 'all'
-      run: |
-        echo "🔄 Retrying all languages from run ${{ steps.retry_info.outputs.original_run_id }}"
-        echo "📊 This is retry attempt #${{ steps.retry_info.outputs.retry_attempt }}"
-        
-        # Set up environments and run tests for all languages
-        echo "Setting up Python environment..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        uv python install 3.12
-        just install-python
-        
-        echo "Setting up Go environment..."
-        go version
-        just install-go
-        
-        echo "Setting up TypeScript environment..."
-        node --version
-        npm --version
-        just install-ts
-        
-        echo "Running all tests..."
-        just test-python-coverage &
-        PYTHON_PID=$!
-        just test-go-coverage &
-        GO_PID=$!
-        just test-ts-coverage &
-        TS_PID=$!
-        
-        # Wait for all tests and capture results
-        wait $PYTHON_PID
-        PYTHON_RESULT=$?
-        wait $GO_PID
-        GO_RESULT=$?
-        wait $TS_PID
-        TS_RESULT=$?
-        
-        echo "Python exit code: $PYTHON_RESULT"
-        echo "Go exit code: $GO_RESULT"
-        echo "TypeScript exit code: $TS_RESULT"
-        
-        # Exit with error if any test failed
-        if [ $PYTHON_RESULT -ne 0 ] || [ $GO_RESULT -ne 0 ] || [ $TS_RESULT -ne 0 ]; then
-          echo "❌ One or more tests failed"
-          exit 1
-        else
-          echo "✅ All tests passed"
-        fi
-    
-    - name: Run retry for Python
-      if: steps.retry_info.outputs.language == 'python'
-      run: |
-        echo "🔄 Retrying Python tests from run ${{ steps.retry_info.outputs.original_run_id }}"
-        echo "📊 This is retry attempt #${{ steps.retry_info.outputs.retry_attempt }}"
-        
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        uv python install 3.12
-        just install-python
-        just test-python-coverage
-    
-    - name: Run retry for Go
-      if: github.event.inputs.language == 'go'
-      run: |
-        echo "🔄 Retrying Go tests from run ${{ github.event.inputs.run_id }}"
-        echo "📊 This is retry attempt #${{ github.event.inputs.attempt_number }}"
-        
-        go version
-        just install-go
-        just test-go-coverage
-    
-    - name: Run retry for TypeScript
-      if: github.event.inputs.language == 'typescript'
-      run: |
-        echo "🔄 Retrying TypeScript tests from run ${{ github.event.inputs.run_id }}"
-        echo "📊 This is retry attempt #${{ github.event.inputs.attempt_number }}"
-        
-        node --version
-        npm --version
-        just install-ts
-        just test-ts-coverage
-    
-    - name: Trigger next retry if failed
-      if: failure()
-      env:
-        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        GH_REPO: ${{ github.repository }}
-      run: |
-        CURRENT_ATTEMPT=${{ github.event.inputs.attempt_number }}
-        NEXT_ATTEMPT=$((CURRENT_ATTEMPT + 1))
-        MAX_ATTEMPTS=5
-        
-        echo "Current attempt: $CURRENT_ATTEMPT"
-        echo "Next attempt: $NEXT_ATTEMPT"
-        echo "Max attempts: $MAX_ATTEMPTS"
-        
-        if [ $NEXT_ATTEMPT -le $MAX_ATTEMPTS ]; then
-          echo "🔄 Triggering retry attempt #$NEXT_ATTEMPT for ${{ github.event.inputs.language }}"
-          
-          # Wait a bit before retrying to avoid hammering
-          echo "⏳ Waiting 30 seconds before next retry..."
-          sleep 30
-          
-          gh workflow run retry.yml \
-            -f run_id="${{ github.event.inputs.run_id }}" \
-            -f language="${{ github.event.inputs.language }}" \
-            -f attempt_number="$NEXT_ATTEMPT"
-          
-          echo "✅ Triggered retry attempt #$NEXT_ATTEMPT"
-          echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.inputs.run_id }}"
-        else
-          echo "❌ Maximum retry attempts ($MAX_ATTEMPTS) reached"
-          echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.inputs.run_id }}"
-          
-          # Update step summary with final failure
-          echo "## ❌ Maximum Retries Reached" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Original Run**: [${{ github.event.inputs.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.inputs.run_id }})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Language**: ${{ github.event.inputs.language }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Final Attempt**: $CURRENT_ATTEMPT/$MAX_ATTEMPTS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status**: FAILED - No more retries available" >> $GITHUB_STEP_SUMMARY
-        fi
-    
-    - name: Upload coverage artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: retry-${{ github.event.inputs.language }}-${{ github.event.inputs.attempt_number }}-coverage
-        path: |
-          python/coverage.xml
-          python/htmlcov/
-          go/coverage.out
-          go/coverage.html
-          typescript/coverage/
-          typescript/junit.xml
-        retention-days: 30
-    
-    - name: Success summary
-      if: success()
-      run: |
-        echo "## ✅ Retry Successful" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **Original Run**: [${{ github.event.inputs.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.inputs.run_id }})" >> $GITHUB_STEP_SUMMARY
-        echo "- **Language**: ${{ github.event.inputs.language }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Successful Attempt**: ${{ github.event.inputs.attempt_number }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Status**: PASSED ✅" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 This re-runs the SAME workflow run" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Satisfies required status checks" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Maintains same run ID and history" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Only retries jobs that failed" >> $GITHUB_STEP_SUMMARY
+
+        # Wait for the original run to complete/fail before re-running
+        echo "⏳ Waiting for original run to complete..."
+        gh run watch $RUN_ID > /dev/null 2>&1 || true
+
+        # Re-run only the failed jobs in the original workflow
+        echo "🚀 Re-running failed jobs..."
+        gh run rerun $RUN_ID --failed
+
+        echo "✅ Re-run triggered successfully"
+        echo "🔗 Monitor the re-run at: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"

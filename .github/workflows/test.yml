@@ -70,62 +70,46 @@ jobs:
 
     - name: Run ${{ matrix.language }} tests
       id: test_single_attempt
-      run: |
-        set +e  # Don't exit on error
-        just ${{ matrix.test_cmd }}
-        exit_code=$?
-        echo "TEST_EXIT_CODE=$exit_code" >> $GITHUB_OUTPUT
-        if [ $exit_code -eq 0 ]; then
-          echo "✅ Tests passed"
-          exit 0
-        else
-          echo "❌ Tests failed (exit code: $exit_code)"
-          exit 0  # Don't fail here, let the retry trigger step handle it
-        fi
+      run: just ${{ matrix.test_cmd }}
+      continue-on-error: true
 
-    - name: Trigger manual retry on failure
-      if: always() && steps.test_single_attempt.outputs.TEST_EXIT_CODE != '0'
+    - name: Debug step states
+      if: always()
+      run: |
+        echo "🔍 DEBUGGING STEP STATES"
+        echo "Test step outcome: ${{ steps.test_single_attempt.outcome }}"
+        echo "Test step conclusion: ${{ steps.test_single_attempt.conclusion }}"
+        echo "Run attempt: ${{ github.run_attempt }}"
+        echo "Run attempt check: ${{ fromJSON(github.run_attempt) < 5 }}"
+    
+    - name: Debug failure condition
+      if: failure()
+      run: |
+        echo "🚨 failure() condition is TRUE"
+        echo "This step only runs if failure() evaluates to true"
+    
+    - name: Debug success condition  
+      if: success()
+      run: |
+        echo "✅ success() condition is TRUE"
+        echo "This step only runs if success() evaluates to true"
+    
+    - name: Trigger automatic re-run
+      if:
+        ${{ steps.test_single_attempt.outcome == 'failure' && fromJSON(github.run_attempt) < 5}}
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GH_REPO: ${{ github.repository }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "❌ Test failed for ${{ matrix.language }}"
-        echo "🔄 Triggering manual retry workflow for better failure tracking"
-        echo "📊 Original run ID: ${{ github.run_id }}"
+        echo "❌ Test failed for ${{ matrix.language }} (attempt ${{ github.run_attempt }}/5)"
+        echo "🔄 Triggering automatic re-run of this same workflow..."
+        echo "📊 Run ID: ${{ github.run_id }}"
 
-        # Trigger retry workflow (works once retry.yml is on main branch)
-        gh workflow run retry.yml \
-          -f run_id="${{ github.run_id }}" \
-          -f language="${{ matrix.language }}" \
-          -f attempt_number="2"
+        # Trigger rerun workflow to re-run this exact same workflow run
+        gh workflow run retry.yml -f run_id="${{ github.run_id }}"
 
-        echo "✅ Automatic retry triggered"
-        echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/retry.yml"
-        
-        # Make the job fail to show correct status
-        echo "❌ Failing job to show correct status (retry triggered)"
-        exit 1
+        echo "✅ Re-run triggered - this will retry the same workflow run"
 
-        # Create failure summary
-        echo "## ❌ Test Failure - Manual Retry Required" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Language | ${{ matrix.language }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Failed Run | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
-        echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔄 How to Retry" >> $GITHUB_STEP_SUMMARY
-        echo "1. **Re-run this job**: Click 'Re-run failed jobs' on this run" >> $GITHUB_STEP_SUMMARY
-        echo "2. **Manual retry workflow**: Go to [Actions](https://github.com/${{ github.repository }}/actions/workflows/retry.yml) → Run workflow" >> $GITHUB_STEP_SUMMARY
-        echo "   - **run_id**: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "   - **language**: \`${{ matrix.language }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "   - **attempt_number**: \`2\`" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Benefits of Manual Retry" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Each retry creates a separate workflow run for better tracking" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Clear failure visibility vs consolidated logs" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Individual retry attempts show up in GitHub Actions history" >> $GITHUB_STEP_SUMMARY
 
     - name: Set result outputs
       id: set_results

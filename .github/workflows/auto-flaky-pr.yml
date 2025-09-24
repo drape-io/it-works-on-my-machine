@@ -45,7 +45,7 @@ jobs:
               echo "⚠️ Skipping merge due to conflicts, will try again next cycle"
               exit 0
             }
-            
+
             # Only push if there were actual changes
             if [[ "$merge_output" != *"Already up to date"* ]]; then
               echo "📤 Pushing changes to origin $pr_branch"
