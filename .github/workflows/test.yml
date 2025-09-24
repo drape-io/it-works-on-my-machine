@@ -77,15 +77,14 @@ jobs:
       if: always()
       run: |
         echo "🔍 DEBUGGING STEP STATES"
-        echo "Job status: failure()=${{ failure() }}"
         echo "Test step outcome: ${{ steps.test_single_attempt.outcome }}"
         echo "Test step conclusion: ${{ steps.test_single_attempt.conclusion }}"
         echo "Run attempt: ${{ github.run_attempt }}"
         echo "Run attempt check: ${{ fromJSON(github.run_attempt) < 5 }}"
-        echo "Full condition would be: ${{ failure() && steps.test_single_attempt.conclusion == 'failure' && fromJSON(github.run_attempt) < 5 }}"
     
     - name: Trigger automatic re-run
-      if: failure() && steps.test_single_attempt.conclusion == 'failure' && fromJSON(github.run_attempt) < 5
+      if:
+        ${{ failure() && steps.test_single_attempt.conclusion == 'failure' && fromJSON(github.run_attempt) < 5}}
       env:
         GH_REPO: ${{ github.repository }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
