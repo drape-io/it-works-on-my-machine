@@ -12,6 +12,10 @@ jobs:
   retry:
     name: 🔄 Retry Jobs
     runs-on: ubuntu-latest
+    permissions:
+      actions: write      # Required for gh run rerun
+      contents: read      # Required for checkout
+      pull-requests: write # May help with PR reruns
     
     steps:
       - name: Checkout code
