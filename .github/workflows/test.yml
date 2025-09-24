@@ -104,20 +104,16 @@ jobs:
         path: ${{ matrix.coverage_paths }}
         retention-days: 30
 
-    - name: Trigger automatic retry
-      if: failure() && fromJSON(github.run_attempt) < 5
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        echo "🔄 Test failed, triggering automatic retry (attempt ${{ github.run_attempt }}/5)"
-        echo "📊 Run ID: ${{ github.run_id }}"
-        gh workflow run retry.yml --field run_id=${{ github.run_id }}
 
   summary:
     name: 📊 Test Summary
     runs-on: ubuntu-latest
     needs: [test]
     if: always()
+    permissions:
+      contents: read      # Required for checkout
+      actions: write      # Required for workflow dispatch
+      pull-requests: write # Required for PR context retries
     steps:
     - name: Generate test summary
       run: |
@@ -169,4 +165,13 @@ jobs:
         echo "- **Clear logs**: Each retry has isolated logs and artifacts" >> $GITHUB_STEP_SUMMARY
         echo "- **Improved visibility**: Easier to see failure patterns and success rates" >> $GITHUB_STEP_SUMMARY
         echo "- **Manual override**: Can also trigger retries manually via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
+
+    - name: Trigger automatic retry
+      if: failure() && fromJSON(github.run_attempt) < 5
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🔄 Some tests failed, triggering automatic retry (attempt ${{ github.run_attempt }}/5)"
+        echo "📊 Run ID: ${{ github.run_id }}"
+        gh workflow run retry.yml --field run_id=${{ github.run_id }}
 
