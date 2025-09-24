@@ -11,6 +11,9 @@ inputs:
     description: 'Workflow file to use for retries'
     required: false
     default: 'retry.yml'
+  step-id:
+    description: 'ID of step to check (required if using continue-on-error)'
+    required: false
 
 runs:
   using: composite
@@ -21,12 +24,19 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        # Check if any previous step failed and we're under retry limit
+        # Determine if we should retry based on job status or step outcome
         SHOULD_RETRY="false"
         
-        # Look for any failed steps in the job
-        if [ "${{ job.status }}" = "failure" ] && [ ${{ github.run_attempt }} -lt ${{ inputs.max-attempts }} ]; then
-          SHOULD_RETRY="true"
+        if [ -n "${{ inputs.step-id }}" ]; then
+          # Check specific step outcome (for continue-on-error usage)
+          if [ "${{ steps[inputs.step-id].outcome }}" = "failure" ] && [ ${{ github.run_attempt }} -lt ${{ inputs.max-attempts }} ]; then
+            SHOULD_RETRY="true"
+          fi
+        else
+          # Check job status (for standard failure usage)
+          if [ "${{ job.status }}" = "failure" ] && [ ${{ github.run_attempt }} -lt ${{ inputs.max-attempts }} ]; then
+            SHOULD_RETRY="true"
+          fi
         fi
         
         if [ "$SHOULD_RETRY" = "true" ]; then
@@ -39,8 +49,15 @@ runs:
           echo "✅ Retry triggered successfully"
           echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/${{ inputs.retry-workflow }}"
           
-          # Fail the job for proper status indication
-          exit 1
+          # If using continue-on-error, we need to fail the job for proper status
+          if [ -n "${{ inputs.step-id }}" ]; then
+            echo "💥 Failing job to show correct status (continue-on-error was used)"
+            exit 1
+          fi
         else
-          echo "ℹ️ No retry needed (job succeeded or max attempts reached)"
+          if [ -n "${{ inputs.step-id }}" ]; then
+            echo "ℹ️ No retry needed (step succeeded or max attempts reached)"
+          else
+            echo "ℹ️ No retry needed (job succeeded or max attempts reached)"
+          fi
         fi

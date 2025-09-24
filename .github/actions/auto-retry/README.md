@@ -11,6 +11,7 @@ A GitHub Action that automatically retries failed jobs using GitHub's native ret
 
 ## Usage
 
+### Option 1: Standard Pattern (Let job fail naturally)
 ```yaml
 jobs:
   test:
@@ -18,12 +19,30 @@ jobs:
     steps:
       - name: Run tests
         run: npm test
-        continue-on-error: true  # Don't fail job immediately
+        
+      - name: Auto retry on failure
+        if: failure()
+        uses: ./.github/actions/auto-retry
+        with:
+          max-attempts: 5
+```
+
+### Option 2: Continue-on-Error Pattern (More control)
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run tests
+        id: test_step
+        run: npm test
+        continue-on-error: true
         
       - name: Auto retry on failure
         uses: ./.github/actions/auto-retry
         with:
-          max-attempts: 5  # Default: 3
+          max-attempts: 5
+          step-id: test_step
 ```
 
 ## Inputs
@@ -32,6 +51,7 @@ jobs:
 |-------|-------------|----------|---------|
 | `max-attempts` | Maximum retry attempts | No | `3` |
 | `retry-workflow` | Workflow file to use for retries | No | `retry.yml` |
+| `step-id` | ID of step to check (required for continue-on-error) | No | - |
 
 ## How It Works
 
