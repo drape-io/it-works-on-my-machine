@@ -1,0 +1,143 @@
+name: 'Auto Retry'
+description: 'Automatically retry failed jobs with minimal setup'
+author: 'drape-io'
+
+inputs:
+  max-attempts:
+    description: 'Maximum retry attempts'
+    required: false
+    default: '3'
+  retry-wait-seconds:
+    description: 'Seconds to wait before triggering retry'
+    required: false
+    default: '10'
+  pre-retry-command:
+    description: 'Command to run before triggering retry'
+    required: false
+  warning-on-retry:
+    description: 'Output warnings instead of info messages on retry'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token for API calls'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    # Handle the retry execution (when triggered via repository_dispatch)
+    - name: Execute retry
+      if: github.event_name == 'repository_dispatch' && github.event.action == 'auto-retry'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        RUN_ID="${{ github.event.client_payload.run_id }}"
+        WORKFLOW_NAME="${{ github.event.client_payload.workflow }}"
+
+        echo "🔄 Executing retry for workflow: $WORKFLOW_NAME"
+        echo "📊 Original run ID: $RUN_ID"
+
+        # Pre-retry command
+        if [ -n "${{ inputs.pre-retry-command }}" ]; then
+          echo "🧹 Running pre-retry command..."
+          eval "${{ inputs.pre-retry-command }}" || echo "::warning::Pre-retry command failed, continuing..."
+        fi
+
+        # Wait before retry
+        if [ "${{ inputs.retry-wait-seconds }}" != "0" ]; then
+          echo "⏳ Waiting ${{ inputs.retry-wait-seconds }} seconds before retry..."
+          sleep ${{ inputs.retry-wait-seconds }}
+        fi
+
+        # Wait for original run to complete
+        echo "⏳ Waiting for original run to complete..."
+        gh run watch $RUN_ID > /dev/null 2>&1 || true
+
+        # Re-run failed jobs
+        echo "🚀 Re-running failed jobs..."
+        gh run rerun $RUN_ID --failed
+
+        echo "✅ Re-run triggered successfully"
+        echo "🔗 Monitor at: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+
+    # Detect failure and trigger retry (when used in regular jobs)
+    - name: Trigger retry on failure
+      if: >
+        job.status == 'failure' && 
+        github.event_name != 'repository_dispatch' &&
+        github.run_attempt < fromJSON(inputs.max-attempts)
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        # Determine log level
+        if [ "${{ inputs.warning-on-retry }}" = "true" ]; then
+          echo "::warning::🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+        else
+          echo "🔄 Job failed, triggering retry (attempt ${{ github.run_attempt }}/${{ inputs.max-attempts }})"
+        fi
+
+        echo "📊 Run ID: ${{ github.run_id }}"
+        echo "🌿 Ref: ${{ github.ref }}"
+
+        # Trigger retry via repository_dispatch
+        echo "🚀 Dispatching retry..."
+
+        # Build JSON payload using jq
+        PAYLOAD=$(jq -n \
+          --arg event_type "auto-retry" \
+          --arg run_id "${{ github.run_id }}" \
+          --arg workflow "${{ github.workflow }}" \
+          --arg ref "${{ github.ref }}" \
+          --argjson attempt ${{ github.run_attempt }} \
+          '{
+            event_type: $event_type,
+            client_payload: {
+              run_id: $run_id,
+              workflow: $workflow,
+              ref: $ref,
+              attempt: $attempt
+            }
+          }')
+
+        curl -sS -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer $GH_TOKEN" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/${{ github.repository }}/dispatches" \
+          -d "$PAYLOAD"
+
+        if [ $? -eq 0 ]; then
+          echo "✅ Retry dispatched successfully"
+          echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions"
+        else
+          echo "::error::❌ Failed to dispatch retry"
+          exit 1
+        fi
+
+    # Show retry information if this run was triggered by retry
+    - name: Show retry info
+      if: github.event.client_payload.run_id != ''
+      shell: bash
+      run: |
+        echo "ℹ️ This is a retry of run ${{ github.event.client_payload.run_id }}"
+        echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.client_payload.run_id }}"
+
+        # Add to step summary
+        echo "## 🔄 Retry Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Original Run:** [${{ github.event.client_payload.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.client_payload.run_id }})" >> $GITHUB_STEP_SUMMARY
+        echo "- **Retry Attempt:** ${{ github.event.client_payload.attempt }}" >> $GITHUB_STEP_SUMMARY
+
+    # Provide helpful setup instructions if repository_dispatch is not configured
+    - name: Check setup
+      if: failure() && github.run_attempt >= fromJSON(inputs.max-attempts)
+      shell: bash
+      run: |
+        echo "::warning::🚨 Max retry attempts reached (${{ inputs.max-attempts }})"
+        echo "::notice::💡 To enable auto-retry, add this to your workflow triggers:"
+        echo "::notice::   on:"
+        echo "::notice::     push:"
+        echo "::notice::     repository_dispatch:"
+        echo "::notice::       types: [auto-retry]"
