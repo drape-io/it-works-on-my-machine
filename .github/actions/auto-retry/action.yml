@@ -36,7 +36,7 @@ runs:
     # Show max attempts reached message
     - name: Max attempts reached
       if: >
-        failure() && 
+        steps.test.outcome == 'failure' && 
         github.run_attempt >= fromJSON(inputs.max-attempts) &&
         inputs.force-retry != 'true'
       shell: bash
@@ -66,7 +66,7 @@ runs:
     # Detect failure and trigger retry (when used in regular jobs)
     - name: Trigger retry on failure
       if: >
-        failure() && 
+        steps.test.outcome == 'failure' && 
         (github.run_attempt < fromJSON(inputs.max-attempts) || inputs.force-retry == 'true')
       shell: bash
       env:
