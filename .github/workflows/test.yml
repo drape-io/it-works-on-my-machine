@@ -167,7 +167,9 @@ jobs:
         echo "- **Manual override**: Can also trigger retries manually via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
 
     - name: Trigger automatic retry
-      if: failure() && fromJSON(github.run_attempt) < 5
+      if: |
+        contains(needs.test.result, 'failure') && 
+        fromJSON(github.run_attempt) < 5
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
