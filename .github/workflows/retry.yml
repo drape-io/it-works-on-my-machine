@@ -1,0 +1,42 @@
+name: 🔄 Retry Failed Jobs
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run ID to retry'
+        required: true
+        type: string
+
+jobs:
+  retry:
+    name: 🔄 Retry Jobs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Retry failed jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          echo "🔄 Retrying failed jobs for run: $RUN_ID"
+          echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+          
+          # Wait for the original run to complete if it's still running
+          echo "⏳ Waiting for original run to complete..."
+          gh run watch $RUN_ID > /dev/null 2>&1 || true
+          
+          # Show which jobs failed
+          echo "🔍 Failed jobs in run $RUN_ID:"
+          gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | select(.conclusion == "failure") | "  - \(.name) (ID: \(.id))"'
+          
+          # Retry all failed jobs
+          echo "🚀 Retrying all failed jobs..."
+          gh run rerun $RUN_ID --failed
+          
+          echo "✅ Retry initiated!"
+          echo "🔗 Monitor at: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"

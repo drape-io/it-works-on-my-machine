@@ -69,15 +69,7 @@ jobs:
       run: just ${{ matrix.install_cmd }}
 
     - name: Run ${{ matrix.language }} tests
-      id: test
       run: just ${{ matrix.test_cmd }}
-      continue-on-error: true
-
-    - name: Auto retry on failure
-      if: always()
-      uses: ./.github/actions/auto-retry
-      with:
-        max-attempts: 5
 
     - name: Set result outputs
       id: set_results
