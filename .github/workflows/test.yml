@@ -115,6 +115,9 @@ jobs:
       actions: write      # Required for workflow dispatch
       pull-requests: write # Required for PR context retries
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Generate test summary
       run: |
         echo "## 🎯 Flaky Test Results Summary" >> $GITHUB_STEP_SUMMARY
@@ -165,17 +168,6 @@ jobs:
         echo "- **Clear logs**: Each retry has isolated logs and artifacts" >> $GITHUB_STEP_SUMMARY
         echo "- **Improved visibility**: Easier to see failure patterns and success rates" >> $GITHUB_STEP_SUMMARY
         echo "- **Manual override**: Can also trigger retries manually via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
-
-    - name: Debug retry condition
-      if: always()
-      run: |
-        echo "🔍 DEBUGGING RETRY CONDITION"
-        echo "needs.test.result: ${{ needs.test.result }}"
-        echo "github.run_attempt: ${{ github.run_attempt }}"
-        echo "fromJSON(github.run_attempt): ${{ fromJSON(github.run_attempt) }}"
-        echo "Condition 1 (needs.test.result == 'failure'): ${{ needs.test.result == 'failure' }}"
-        echo "Condition 2 (run_attempt < 5): ${{ fromJSON(github.run_attempt) < 5 }}"
-        echo "Combined condition: ${{ (needs.test.result == 'failure') && fromJSON(github.run_attempt) < 5 }}"
 
     - name: Trigger automatic retry
       if: |
