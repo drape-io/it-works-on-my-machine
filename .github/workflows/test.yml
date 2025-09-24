@@ -93,6 +93,12 @@ jobs:
         echo "🔄 Triggering manual retry workflow for better failure tracking"
         echo "📊 Original run ID: ${{ github.run_id }}"
 
+        # First, test permissions and capabilities
+        echo "🧪 Testing token permissions..."
+        GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" GITHUB_REPOSITORY="${{ github.repository }}" ./test-permissions.sh
+        
+        echo ""
+        echo "🔄 Attempting repository dispatch..."
         # Trigger retry via repository dispatch (works from any branch)
         curl -L \
           -X POST \
