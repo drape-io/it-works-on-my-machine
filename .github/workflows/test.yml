@@ -82,6 +82,18 @@ jobs:
         echo "Run attempt: ${{ github.run_attempt }}"
         echo "Run attempt check: ${{ fromJSON(github.run_attempt) < 5 }}"
     
+    - name: Debug failure condition
+      if: failure()
+      run: |
+        echo "🚨 failure() condition is TRUE"
+        echo "This step only runs if failure() evaluates to true"
+    
+    - name: Debug success condition  
+      if: success()
+      run: |
+        echo "✅ success() condition is TRUE"
+        echo "This step only runs if success() evaluates to true"
+    
     - name: Trigger automatic re-run
       if:
         ${{ failure() && steps.test_single_attempt.outcome == 'failure' && fromJSON(github.run_attempt) < 5}}
