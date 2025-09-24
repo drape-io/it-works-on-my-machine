@@ -131,7 +131,7 @@ jobs:
           This automated PR demonstrates:
 
           ### 🎯 Flaky Test Behavior
-          - Tests have **50%, 60%, and 75%** pass rates
+          - Tests have **70%, 80%, and 90%** pass rates
           - Simulates real-world test flakiness
           - Shows importance of retry strategies
 

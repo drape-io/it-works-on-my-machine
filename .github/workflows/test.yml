@@ -93,20 +93,13 @@ jobs:
         echo "🔄 Triggering manual retry workflow for better failure tracking"
         echo "📊 Original run ID: ${{ github.run_id }}"
 
-        # Store failure info and instructions for manual retry
-        echo "💾 Storing failure information..."
-        echo "FAILED_RUN_ID=${{ github.run_id }}" >> failure_info.txt
-        echo "FAILED_LANGUAGE=${{ matrix.language }}" >> failure_info.txt
-        echo "FAILED_REF=${{ github.ref_name }}" >> failure_info.txt
-        echo "FAILED_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> failure_info.txt
-        
-        echo "🔄 Manual retry required due to GitHub token limitations."
-        echo "To retry this failure:"
-        echo "1. Go to https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        echo "2. Click 'Re-run failed jobs' button"
-        echo "3. Or manually trigger retry workflow with run_id: ${{ github.run_id }}, language: ${{ matrix.language }}"
+        # Trigger retry workflow (works once retry.yml is on main branch)
+        gh workflow run retry.yml \
+          -f run_id="${{ github.run_id }}" \
+          -f language="${{ matrix.language }}" \
+          -f attempt_number="2"
 
-        echo "✅ Manual retry triggered"
+        echo "✅ Automatic retry triggered"
         echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/retry.yml"
         
         # Make the job fail to show correct status
@@ -129,10 +122,10 @@ jobs:
         echo "   - **language**: \`${{ matrix.language }}\`" >> $GITHUB_STEP_SUMMARY
         echo "   - **attempt_number**: \`2\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Why Manual Retry?" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Benefits of Manual Retry" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ Each retry creates a separate workflow run for better tracking" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ Clear failure visibility vs consolidated logs" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ GitHub token limitations prevent automatic dispatch from feature branches" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Individual retry attempts show up in GitHub Actions history" >> $GITHUB_STEP_SUMMARY
 
     - name: Set result outputs
       id: set_results
@@ -215,7 +208,7 @@ jobs:
         echo "| 📘 TypeScript | $TS_STATUS | ${TS_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
-        echo "- **Pass rates**: 50%, 60%, 75% (designed to fail frequently)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
         echo "- **Retry strategy**: Manual retry workflow with separate runs" >> $GITHUB_STEP_SUMMARY
         echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
         echo "- **Expected behavior**: Failures trigger manual retry workflow" >> $GITHUB_STEP_SUMMARY
