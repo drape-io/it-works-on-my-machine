@@ -13,43 +13,43 @@ func TestReliableProbabilityBaseline(t *testing.T) {
 	}
 }
 
-// TestHighSuccess90Percent passes 90% of the time - occasional failures
-func TestHighSuccess90Percent(t *testing.T) {
-	success, err := probability.RandomSuccess(0.90)
+// TestHighSuccess75Percent passes 75% of the time - frequent failures
+func TestHighSuccess75Percent(t *testing.T) {
+	success, err := probability.RandomSuccess(0.75)
 	if err != nil {
 		t.Fatalf("Error in RandomSuccess: %v", err)
 	}
 	if !success {
-		t.Fatalf("Random failure at 90%% success rate")
+		t.Fatalf("Random failure at 75%% success rate")
 	}
 }
 
-// TestModerateSuccess80Percent passes 80% of the time - moderate flakiness
-func TestModerateSuccess80Percent(t *testing.T) {
-	success, err := probability.RandomSuccess(0.80)
+// TestModerateSuccess60Percent passes 60% of the time - high flakiness
+func TestModerateSuccess60Percent(t *testing.T) {
+	success, err := probability.RandomSuccess(0.60)
 	if err != nil {
 		t.Fatalf("Error in RandomSuccess: %v", err)
 	}
 	if !success {
-		t.Fatalf("Random failure at 80%% success rate")
+		t.Fatalf("Random failure at 60%% success rate")
 	}
 }
 
-// TestLowSuccess70Percent passes 70% of the time - noticeable flakiness
-func TestLowSuccess70Percent(t *testing.T) {
-	success, err := probability.RandomSuccess(0.70)
+// TestLowSuccess50Percent passes 50% of the time - very high flakiness
+func TestLowSuccess50Percent(t *testing.T) {
+	success, err := probability.RandomSuccess(0.50)
 	if err != nil {
 		t.Fatalf("Error in RandomSuccess: %v", err)
 	}
 	if !success {
-		t.Fatalf("Random failure at 70%% success rate")
+		t.Fatalf("Random failure at 50%% success rate")
 	}
 }
 
-// TestDiceRollSimulation simulates rolling a six-sided die - passes if we get 2-6
+// TestDiceRollSimulation simulates rolling a six-sided die - passes if we get 3-6
 func TestDiceRollSimulation(t *testing.T) {
 	roll := probability.DiceRoll()
-	if roll < 2 {
-		t.Fatalf("Dice roll failed: got %d, need 2-6 (~83%% chance)", roll)
+	if roll < 3 {
+		t.Fatalf("Dice roll failed: got %d, need 3-6 (~67%% chance)", roll)
 	}
 }

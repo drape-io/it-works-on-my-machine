@@ -16,15 +16,20 @@ class TestProbabilityFlaky:
         """Always passes - reliable baseline test."""
         assert is_baseline_test()
 
-    def test_high_success_90_percent(self):
-        """Passes 90% of the time - occasional failures."""
-        assert random_success(0.90)
+    def test_high_success_75_percent(self):
+        """Passes 75% of the time - frequent failures."""
+        assert random_success(0.75)
 
-    def test_moderate_success_80_percent(self):
-        """Passes 80% of the time - moderate flakiness."""
-        assert random_success(0.80)
+    def test_moderate_success_60_percent(self):
+        """Passes 60% of the time - high flakiness."""
+        assert random_success(0.60)
 
-    def test_low_success_70_percent(self):
-        """Passes 70% of the time - noticeable flakiness."""
-        assert random_success(0.70)
+    def test_low_success_50_percent(self):
+        """Passes 50% of the time - very high flakiness."""
+        assert random_success(0.50)
+
+    def test_dice_roll_simulation(self):
+        """Simulates rolling a six-sided die - passes if we get 3-6 (~67% chance)."""
+        roll = dice_roll()  # 1-6
+        assert roll >= 3, f"Dice roll failed: got {roll}, need 3-6 (~67% chance)"
 

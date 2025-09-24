@@ -51,27 +51,32 @@ jobs:
             coverage_paths: |
               typescript/coverage/
               typescript/junit.xml
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up ${{ matrix.language }} environment
       run: ${{ matrix.setup_cmd }}
-    
+
     - name: Install just
       uses: extractions/setup-just@v2
-    
+
     - name: Install ${{ matrix.language }} dependencies
       run: just ${{ matrix.install_cmd }}
-    
-    - name: Run ${{ matrix.language }} tests (single attempt)
+
+    - name: Run ${{ matrix.language }} tests
       id: test_single_attempt
-      run: just ${{ matrix.test_cmd }}
+      run: |
+        set +e  # Don't exit on error
+        just ${{ matrix.test_cmd }}
+        exit_code=$?
+        echo "TEST_EXIT_CODE=$exit_code" >> $GITHUB_OUTPUT
+        exit $exit_code
       continue-on-error: true
-    
+
     - name: Trigger manual retry on failure
-      if: failure() && steps.test_single_attempt.outcome == 'failure'
+      if: always() && steps.test_single_attempt.outputs.TEST_EXIT_CODE != '0'
       env:
         GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         GH_REPO: ${{ github.repository }}
@@ -79,16 +84,16 @@ jobs:
         echo "❌ Test failed for ${{ matrix.language }}"
         echo "🔄 Triggering manual retry workflow for better failure tracking"
         echo "📊 Original run ID: ${{ github.run_id }}"
-        
+
         # Trigger the manual retry workflow
         gh workflow run retry.yml \
           -f run_id="${{ github.run_id }}" \
           -f language="${{ matrix.language }}" \
           -f attempt_number="2"
-        
+
         echo "✅ Manual retry triggered"
         echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions/workflows/retry.yml"
-        
+
         # Create failure summary
         echo "## ❌ Test Failure - Retry Triggered" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -104,29 +109,36 @@ jobs:
         echo "- ✅ Better failure tracking and visibility" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ Clear logs for each attempt" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ GitHub API tracks each retry as individual run" >> $GITHUB_STEP_SUMMARY
-    
+
     - name: Set result outputs
       id: set_results
       if: always()
       run: |
         # Set outputs based on language
+        # Determine outcome based on exit code
+        if [ "${{ steps.test_single_attempt.outputs.TEST_EXIT_CODE }}" = "0" ]; then
+          OUTCOME="success"
+        else
+          OUTCOME="failure"
+        fi
+
         if [ "${{ matrix.language }}" = "python" ]; then
           echo "python-attempts=1" >> $GITHUB_OUTPUT
-          echo "python-outcome=${{ steps.test_single_attempt.outcome }}" >> $GITHUB_OUTPUT
+          echo "python-outcome=$OUTCOME" >> $GITHUB_OUTPUT
         elif [ "${{ matrix.language }}" = "go" ]; then
           echo "go-attempts=1" >> $GITHUB_OUTPUT
-          echo "go-outcome=${{ steps.test_single_attempt.outcome }}" >> $GITHUB_OUTPUT
+          echo "go-outcome=$OUTCOME" >> $GITHUB_OUTPUT
         elif [ "${{ matrix.language }}" = "typescript" ]; then
           echo "typescript-attempts=1" >> $GITHUB_OUTPUT
-          echo "typescript-outcome=${{ steps.test_single_attempt.outcome }}" >> $GITHUB_OUTPUT
+          echo "typescript-outcome=$OUTCOME" >> $GITHUB_OUTPUT
         fi
-        echo "📊 ${{ matrix.language }} test completed with outcome: ${{ steps.test_single_attempt.outcome }}"
-        if [ "${{ steps.test_single_attempt.outcome }}" = "failure" ]; then
+        echo "📊 ${{ matrix.language }} test completed with outcome: $OUTCOME"
+        if [ "$OUTCOME" = "failure" ]; then
           echo "🔄 Manual retry workflow triggered for better failure tracking"
         else
           echo "✅ Test passed on first attempt - no retry needed"
         fi
-    
+
     - name: Upload ${{ matrix.language }} coverage
       uses: actions/upload-artifact@v4
       if: always()
@@ -141,13 +153,13 @@ jobs:
     needs: [test]
     if: always()
     steps:
-    - name: Generate test summary  
+    - name: Generate test summary
       run: |
         echo "## 🎯 Flaky Test Results Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Language | Result | Attempts Used |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|--------|---------------|" >> $GITHUB_STEP_SUMMARY
-        
+
         # Python results
         PYTHON_OUTCOME="${{ needs.test.outputs.python-outcome }}"
         PYTHON_ATTEMPTS="${{ needs.test.outputs.python-attempts }}"
@@ -157,8 +169,8 @@ jobs:
           PYTHON_STATUS="❌ Failed"
         fi
         echo "| 🐍 Python | $PYTHON_STATUS | ${PYTHON_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
-        
-        # Go results  
+
+        # Go results
         GO_OUTCOME="${{ needs.test.outputs.go-outcome }}"
         GO_ATTEMPTS="${{ needs.test.outputs.go-attempts }}"
         if [ "$GO_OUTCOME" = "success" ]; then
@@ -167,7 +179,7 @@ jobs:
           GO_STATUS="❌ Failed"
         fi
         echo "| 🐹 Go | $GO_STATUS | ${GO_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
-        
+
         # TypeScript results
         TS_OUTCOME="${{ needs.test.outputs.typescript-outcome }}"
         TS_ATTEMPTS="${{ needs.test.outputs.typescript-attempts }}"
@@ -179,7 +191,7 @@ jobs:
         echo "| 📘 TypeScript | $TS_STATUS | ${TS_ATTEMPTS:-Unknown} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
-        echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Pass rates**: 50%, 60%, 75% (designed to fail frequently)" >> $GITHUB_STEP_SUMMARY
         echo "- **Retry strategy**: Manual retry workflow with separate runs" >> $GITHUB_STEP_SUMMARY
         echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
         echo "- **Expected behavior**: Failures trigger manual retry workflow" >> $GITHUB_STEP_SUMMARY

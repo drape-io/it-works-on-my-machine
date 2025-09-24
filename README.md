@@ -121,7 +121,7 @@ npm run test:ci
 
 ## Test Suites
 
-### 🐍 Python Tests (4 tests)
+### 🐍 Python Tests (5 tests)
 - **Framework**: pytest with pytest-cov
 - **File**: `python/tests/test_probability.py`
 - **Utilities**: Probability functions in `python/src/it_works_on_my_machine/`
@@ -146,10 +146,10 @@ All languages implement these consistent probability-based patterns:
 - Simple assertion that always succeeds
 
 ### 🎲 Probability-Based Tests
-- **High Success** (90% pass rate) - Occasional failures
-- **Moderate Success** (80% pass rate) - Moderate flakiness
-- **Low Success** (70% pass rate) - Noticeable flakiness
-- **Dice Roll Simulation** (~83% pass rate) - Passes if roll ≥ 2
+- **High Success** (75% pass rate) - Frequent failures
+- **Moderate Success** (60% pass rate) - High flakiness
+- **Low Success** (50% pass rate) - Very high flakiness
+- **Dice Roll Simulation** (~67% pass rate) - Passes if roll ≥ 3
 
 ### 🔄 Automated Retry Demonstration
 - Tests use crypto-secure randomness for realistic failure patterns
@@ -230,28 +230,28 @@ jobs:
 ### Example Pattern
 ```python
 # Python
-def test_moderate_success_80_percent():
-    """Passes 80% of the time - moderate flakiness."""
-    assert random_success(0.80)
+def test_moderate_success_60_percent():
+    """Passes 60% of the time - high flakiness."""
+    assert random_success(0.60)
 ```
 
 ```go
 // Go
-func TestModerateSuccess80Percent(t *testing.T) {
-    success, err := probability.RandomSuccess(0.80)
+func TestModerateSuccess60Percent(t *testing.T) {
+    success, err := probability.RandomSuccess(0.60)
     if err != nil {
         t.Fatalf("Error in RandomSuccess: %v", err)
     }
     if !success {
-        t.Fatalf("Random failure at 80%% success rate")
+        t.Fatalf("Random failure at 60%% success rate")
     }
 }
 ```
 
 ```typescript
 // TypeScript
-test('moderate success 80% - moderate flakiness', () => {
-  expect(randomSuccess(0.80)).toBe(true);
+test('moderate success 60% - high flakiness', () => {
+  expect(randomSuccess(0.60)).toBe(true);
 });
 ```
 
