@@ -11,8 +11,9 @@ jobs:
     name: 🎲 Test ${{ matrix.language }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for repository_dispatch
-      actions: write
+      contents: read      # Required for checkout
+      actions: write      # Required for workflow dispatch
+      pull-requests: write # Required for PR context retries
     outputs:
       python-attempts: ${{ steps.set_results.outputs.python-attempts }}
       go-attempts: ${{ steps.set_results.outputs.go-attempts }}
@@ -103,6 +104,15 @@ jobs:
         path: ${{ matrix.coverage_paths }}
         retention-days: 30
 
+    - name: Trigger automatic retry
+      if: failure() && fromJSON(github.run_attempt) < 5
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🔄 Test failed, triggering automatic retry (attempt ${{ github.run_attempt }}/5)"
+        echo "📊 Run ID: ${{ github.run_id }}"
+        gh workflow run retry.yml --field run_id=${{ github.run_id }}
+
   summary:
     name: 📊 Test Summary
     runs-on: ubuntu-latest
@@ -148,14 +158,15 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
         echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Retry strategy**: Manual retry workflow with separate runs" >> $GITHUB_STEP_SUMMARY
+        echo "- **Retry strategy**: Automatic retry with max 5 attempts" >> $GITHUB_STEP_SUMMARY
         echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
-        echo "- **Expected behavior**: Failures trigger manual retry workflow" >> $GITHUB_STEP_SUMMARY
+        echo "- **Expected behavior**: Failures automatically trigger retry workflow" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔄 Manual Retry Benefits" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔄 Automatic Retry Benefits" >> $GITHUB_STEP_SUMMARY
         echo "- **Separate runs**: Each retry creates its own workflow run" >> $GITHUB_STEP_SUMMARY
+        echo "- **Max attempts**: Automatically stops after 5 attempts to prevent infinite loops" >> $GITHUB_STEP_SUMMARY
         echo "- **Better tracking**: GitHub API tracks each attempt individually" >> $GITHUB_STEP_SUMMARY
         echo "- **Clear logs**: Each retry has isolated logs and artifacts" >> $GITHUB_STEP_SUMMARY
         echo "- **Improved visibility**: Easier to see failure patterns and success rates" >> $GITHUB_STEP_SUMMARY
-        echo "- **Manual control**: Can trigger retries manually via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
+        echo "- **Manual override**: Can also trigger retries manually via workflow_dispatch" >> $GITHUB_STEP_SUMMARY
 
