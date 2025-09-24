@@ -28,3 +28,8 @@ class TestProbabilityFlaky:
         """Passes 70% of the time - noticeable flakiness."""
         assert random_success(0.70)
 
+    def test_dice_roll_simulation(self):
+        """Simulates rolling a six-sided die - passes if we get 2-6 (~83% chance)."""
+        roll = dice_roll()  # 1-6
+        assert roll >= 2, f"Dice roll failed: got {roll}, need 2-6 (~83% chance)"
+

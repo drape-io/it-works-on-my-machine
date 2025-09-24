@@ -135,10 +135,10 @@ jobs:
           - Simulates real-world test flakiness
           - Shows importance of retry strategies
 
-          ### 🔄 Auto-Retry Mechanism
-          - CI will retry failed tests up to **10 attempts**
-          - Each retry is tracked in GitHub Actions API
-          - Uses `nick-fields/retry` action for proper logging
+          ### 🔄 Manual Retry Mechanism
+          - Failed tests trigger manual retry workflow automatically
+          - Each retry creates a **separate workflow run** for better tracking
+          - Uses `workflow_dispatch` with PERSONAL_ACCESS_TOKEN for triggering
 
           ### 🤖 Automation Features
           - **Hourly schedule**: Creates PR every hour
@@ -147,9 +147,10 @@ jobs:
 
           ### 📊 Expected Behavior
           1. ✅ Tests may pass on first try (~50% chance)
-          2. 🔄 Or retry 2-4 times before passing
-          3. 🎉 Auto-merge when all tests green
-          4. 📈 Counter increments for next run
+          2. 🔄 Or trigger manual retry workflow for better failure tracking
+          3. 📈 Each retry creates separate workflow run with clear logs
+          4. 🎉 Auto-merge when all tests green
+          5. 📈 Counter increments for next run
 
           ### 📈 Data Collection
           This PR is part of ongoing flaky test data collection to analyze:

@@ -121,7 +121,7 @@ npm run test:ci
 
 ## Test Suites
 
-### 🐍 Python Tests (4 tests)
+### 🐍 Python Tests (5 tests)
 - **Framework**: pytest with pytest-cov
 - **File**: `python/tests/test_probability.py`
 - **Utilities**: Probability functions in `python/src/it_works_on_my_machine/`
