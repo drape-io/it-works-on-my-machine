@@ -1,6 +1,8 @@
 name: 🔄 Manual Retry Workflow
 
 on:
+  repository_dispatch:
+    types: [retry-test]
   workflow_dispatch:
     inputs:
       run_id:
@@ -24,7 +26,7 @@ on:
 
 jobs:
   retry-test:
-    name: 🔄 Retry Test ${{ github.event.inputs.language }}
+    name: 🔄 Retry Test
     runs-on: ubuntu-latest
     
     steps:
@@ -34,9 +36,20 @@ jobs:
     - name: Set retry metadata
       id: retry_info
       run: |
-        echo "original_run_id=${{ github.event.inputs.run_id }}" >> $GITHUB_OUTPUT
-        echo "retry_attempt=${{ github.event.inputs.attempt_number }}" >> $GITHUB_OUTPUT
-        echo "language=${{ github.event.inputs.language }}" >> $GITHUB_OUTPUT
+        # Handle both repository_dispatch and workflow_dispatch
+        if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          RUN_ID="${{ github.event.client_payload.run_id }}"
+          LANGUAGE="${{ github.event.client_payload.language }}"
+          ATTEMPT="${{ github.event.client_payload.attempt_number }}"
+        else
+          RUN_ID="${{ github.event.inputs.run_id }}"
+          LANGUAGE="${{ github.event.inputs.language }}"
+          ATTEMPT="${{ github.event.inputs.attempt_number }}"
+        fi
+        
+        echo "original_run_id=$RUN_ID" >> $GITHUB_OUTPUT
+        echo "retry_attempt=$ATTEMPT" >> $GITHUB_OUTPUT
+        echo "language=$LANGUAGE" >> $GITHUB_OUTPUT
         echo "retry_timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_OUTPUT
         
         # Create retry summary for step summary
@@ -44,9 +57,9 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Original Run ID | [${{ github.event.inputs.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.inputs.run_id }}) |" >> $GITHUB_STEP_SUMMARY
-        echo "| Retry Attempt | ${{ github.event.inputs.attempt_number }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Language | ${{ github.event.inputs.language }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Original Run ID | [$RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Retry Attempt | $ATTEMPT |" >> $GITHUB_STEP_SUMMARY
+        echo "| Language | $LANGUAGE |" >> $GITHUB_STEP_SUMMARY
         echo "| Retry Time | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |" >> $GITHUB_STEP_SUMMARY
         echo "| Current Run | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -55,10 +68,10 @@ jobs:
       uses: extractions/setup-just@v2
     
     - name: Run retry for all languages
-      if: github.event.inputs.language == 'all'
+      if: steps.retry_info.outputs.language == 'all'
       run: |
-        echo "🔄 Retrying all languages from run ${{ github.event.inputs.run_id }}"
-        echo "📊 This is retry attempt #${{ github.event.inputs.attempt_number }}"
+        echo "🔄 Retrying all languages from run ${{ steps.retry_info.outputs.original_run_id }}"
+        echo "📊 This is retry attempt #${{ steps.retry_info.outputs.retry_attempt }}"
         
         # Set up environments and run tests for all languages
         echo "Setting up Python environment..."
@@ -105,10 +118,10 @@ jobs:
         fi
     
     - name: Run retry for Python
-      if: github.event.inputs.language == 'python'
+      if: steps.retry_info.outputs.language == 'python'
       run: |
-        echo "🔄 Retrying Python tests from run ${{ github.event.inputs.run_id }}"
-        echo "📊 This is retry attempt #${{ github.event.inputs.attempt_number }}"
+        echo "🔄 Retrying Python tests from run ${{ steps.retry_info.outputs.original_run_id }}"
+        echo "📊 This is retry attempt #${{ steps.retry_info.outputs.retry_attempt }}"
         
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
