@@ -22,6 +22,9 @@ inputs:
     description: 'GitHub token for API calls'
     required: false
     default: ${{ github.token }}
+  job-name:
+    description: 'Specific job name to retry (if not provided, retries all failed jobs)'
+    required: false
 
 runs:
   using: composite
@@ -29,7 +32,7 @@ runs:
     # Handle the retry execution (when triggered via repository_dispatch)
     - name: Execute retry
       if: >
-        github.event_name == 'repository_dispatch' && 
+        github.event_name == 'repository_dispatch' &&
         github.event.action == 'auto-retry' &&
         github.event.client_payload.attempt < fromJSON(inputs.max-attempts)
       shell: bash
@@ -60,23 +63,52 @@ runs:
         echo "⏳ Waiting for original run to complete..."
         gh run watch $RUN_ID > /dev/null 2>&1 || true
 
-        # Re-run specific job that triggered this retry
-        JOB_NAME="${{ github.event.client_payload.job_name }}"
-        if [ -n "$JOB_NAME" ]; then
-          echo "🚀 Re-running specific job: $JOB_NAME"
-          # Get the job ID for this specific job
-          JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
-            --jq ".jobs[] | select(.name == \"$JOB_NAME\") | .id")
-          if [ -n "$JOB_ID" ]; then
-            gh api "repos/${{ github.repository }}/actions/jobs/$JOB_ID/rerun" -X POST
-            echo "✅ Job $JOB_NAME (ID: $JOB_ID) rerun triggered"
+        # Check if a specific job name was requested
+        REQUESTED_JOB_NAME="${{ github.event.client_payload.job_name }}"
+
+        # Debug: Show all jobs and their status
+        echo "🔍 Jobs in original run:"
+        gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+          --jq '.jobs[] | "  - \(.name): \(.conclusion // .status) (ID: \(.id))"'
+
+        if [ -n "$REQUESTED_JOB_NAME" ]; then
+          echo "🎯 Looking for specific job: $REQUESTED_JOB_NAME"
+
+          # Find the specific job by name
+          SPECIFIC_JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+            --jq ".jobs[] | select(.name == \"$REQUESTED_JOB_NAME\") | .id")
+
+          if [ -n "$SPECIFIC_JOB_ID" ]; then
+            echo "🔄 Re-running specific job: $REQUESTED_JOB_NAME (ID: $SPECIFIC_JOB_ID)"
+            gh api "repos/${{ github.repository }}/actions/jobs/$SPECIFIC_JOB_ID/rerun" -X POST
+            echo "✅ Specific job rerun triggered"
           else
-            echo "⚠️ Job not found, falling back to full workflow rerun"
-            gh run rerun $RUN_ID --failed
+            echo "::error::❌ Job '$REQUESTED_JOB_NAME' not found in workflow run $RUN_ID"
+            echo "::error::Available jobs:"
+            gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+              --jq '.jobs[] | "::error::  - \(.name) (ID: \(.id))"'
+            exit 1
           fi
         else
-          echo "🚀 Re-running all failed jobs..."
-          gh run rerun $RUN_ID --failed
+          echo "🚀 No specific job requested, re-running all failed jobs"
+
+          # Get only the failed job IDs
+          FAILED_JOB_IDS=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | select(.conclusion == "failure") | .id' | tr '\n' ' ')
+
+          if [ -n "$FAILED_JOB_IDS" ]; then
+            echo "🎯 Found failed jobs to retry: $FAILED_JOB_IDS"
+            for JOB_ID in $FAILED_JOB_IDS; do
+              JOB_NAME=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+                --jq ".jobs[] | select(.id == $JOB_ID) | .name")
+              echo "🔄 Re-running job: $JOB_NAME (ID: $JOB_ID)"
+              gh api "repos/${{ github.repository }}/actions/jobs/$JOB_ID/rerun" -X POST
+            done
+            echo "✅ All failed jobs rerun triggered"
+          else
+            echo "::warning::⚠️ No failed jobs found in workflow run $RUN_ID"
+            echo "This might happen if jobs were cancelled or if the run is still in progress"
+          fi
         fi
 
         echo "✅ Re-run triggered successfully"
@@ -111,7 +143,7 @@ runs:
           --arg run_id "${{ github.run_id }}" \
           --arg workflow "${{ github.workflow }}" \
           --arg ref "${{ github.ref }}" \
-          --arg job_name "${{ github.job }}" \
+          --arg job_name "${{ inputs.job-name }}" \
           --argjson attempt ${{ github.run_attempt }} \
           '{
             event_type: $event_type,

@@ -78,6 +78,7 @@ jobs:
       uses: ./.github/actions/auto-retry
       with:
         max-attempts: 5
+        job-name: "🎲 Test ${{ matrix.language }}"
 
     - name: Set result outputs
       id: set_results
