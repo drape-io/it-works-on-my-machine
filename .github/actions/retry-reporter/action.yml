@@ -45,7 +45,7 @@ runs:
       run: |
         WORKFLOW_NAME="${{ inputs.workflow-name }}"
         COMMIT_SHA="${{ inputs.commit-sha }}"
-        
+
         # Use defaults if not provided
         if [ -z "$WORKFLOW_NAME" ]; then
           WORKFLOW_NAME="${{ github.workflow }}"
@@ -53,16 +53,21 @@ runs:
         if [ -z "$COMMIT_SHA" ]; then
           COMMIT_SHA="${{ github.sha }}"
         fi
-        
+
         echo "🔍 Analyzing retries for workflow: $WORKFLOW_NAME"
         echo "📊 Commit SHA: $COMMIT_SHA"
-        
+
         # Get all workflow runs for this commit and workflow
         echo "Querying GitHub API for workflow runs..."
-        RUNS_JSON=$(gh api "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_NAME}.yml/runs" \
+        # Get the current workflow run to find its filename
+        CURRENT_RUN_JSON=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+        WORKFLOW_FILE=$(echo "$CURRENT_RUN_JSON" | jq -r '.path' | sed 's|^.github/workflows/||')
+        echo "🔍 Detected workflow file: $WORKFLOW_FILE"
+
+        RUNS_JSON=$(gh api "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_FILE}/runs" \
           --jq ".workflow_runs[] | select(.head_sha == \"$COMMIT_SHA\") | {id: .id, status: .status, conclusion: .conclusion, created_at: .created_at, updated_at: .updated_at}" \
           2>/dev/null | jq -s '.' || echo "[]")
-        
+
         if [ "$RUNS_JSON" = "[]" ] || [ "$RUNS_JSON" = "null" ]; then
           echo "⚠️ No workflow runs found for this commit"
           echo "retry-count=0" >> $GITHUB_OUTPUT
@@ -73,11 +78,11 @@ runs:
           echo "retry-data=[]" >> $GITHUB_OUTPUT
           exit 0
         fi
-        
+
         # Calculate metrics
         TOTAL_RUNS=$(echo "$RUNS_JSON" | jq 'length')
         RETRY_COUNT=$((TOTAL_RUNS - 1))
-        
+
         if [ "$TOTAL_RUNS" -gt 0 ]; then
           FIRST_RUN_ID=$(echo "$RUNS_JSON" | jq -r 'sort_by(.created_at) | .[0].id')
           LAST_RUN_ID=$(echo "$RUNS_JSON" | jq -r 'sort_by(.created_at) | .[-1].id')
@@ -87,7 +92,7 @@ runs:
           LAST_RUN_ID=""
           FINAL_STATUS="unknown"
         fi
-        
+
         # Create retry data with attempt numbers
         RETRY_DATA=$(echo "$RUNS_JSON" | jq 'sort_by(.created_at) | to_entries | map({
           run_id: .value.id,
@@ -97,7 +102,7 @@ runs:
           started_at: .value.created_at,
           completed_at: .value.updated_at
         })')
-        
+
         # Output results
         echo "retry-count=$RETRY_COUNT" >> $GITHUB_OUTPUT
         echo "total-runs=$TOTAL_RUNS" >> $GITHUB_OUTPUT
@@ -107,7 +112,7 @@ runs:
         echo "retry-data<<EOF" >> $GITHUB_OUTPUT
         echo "$RETRY_DATA" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-        
+
         # Create summary
         echo "## 🔄 Retry Analysis Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -118,17 +123,17 @@ runs:
         echo "| Total Retries | $RETRY_COUNT |" >> $GITHUB_STEP_SUMMARY
         echo "| Total Runs | $TOTAL_RUNS |" >> $GITHUB_STEP_SUMMARY
         echo "| Final Status | $FINAL_STATUS |" >> $GITHUB_STEP_SUMMARY
-        
+
         if [ -n "$FIRST_RUN_ID" ]; then
           echo "| First Run | [$FIRST_RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$FIRST_RUN_ID) |" >> $GITHUB_STEP_SUMMARY
           echo "| Last Run | [$LAST_RUN_ID](https://github.com/${{ github.repository }}/actions/runs/$LAST_RUN_ID) |" >> $GITHUB_STEP_SUMMARY
         fi
-        
+
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         if [ "$RETRY_COUNT" -gt 0 ]; then
           echo "### 🎯 Retry Details" >> $GITHUB_STEP_SUMMARY
           echo "$RETRY_DATA" | jq -r '.[] | "- Attempt \(.attempt): [\(.run_id)](https://github.com/${{ github.repository }}/actions/runs/\(.run_id)) - \(.conclusion // .status)"' >> $GITHUB_STEP_SUMMARY
         fi
-        
+
         echo "✅ Analysis complete: $RETRY_COUNT retries found"
