@@ -84,7 +84,7 @@ jobs:
     
     - name: Trigger automatic re-run
       if:
-        ${{ failure() && steps.test_single_attempt.conclusion == 'failure' && fromJSON(github.run_attempt) < 5}}
+        ${{ failure() && steps.test_single_attempt.outcome == 'failure' && fromJSON(github.run_attempt) < 5}}
       env:
         GH_REPO: ${{ github.repository }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
