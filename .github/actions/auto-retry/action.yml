@@ -23,7 +23,7 @@ inputs:
     required: false
     default: ${{ github.token }}
   job-name:
-    description: 'Specific job name to retry (if not provided, retries all failed jobs)'
+    description: 'Specific job name to retry (if not provided, auto-detects)'
     required: false
   force-retry:
     description: 'Force retry even if max attempts reached (use with caution)'
@@ -33,82 +33,10 @@ inputs:
 runs:
   using: composite
   steps:
-    # Handle the retry execution (when triggered via repository_dispatch)
-    - name: Execute retry
-      if: >
-        github.event_name == 'repository_dispatch' &&
-        github.event.action == 'auto-retry' &&
-        github.event.client_payload.attempt < fromJSON(inputs.max-attempts)
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-      run: |
-        RUN_ID="${{ github.event.client_payload.run_id }}"
-        WORKFLOW_NAME="${{ github.event.client_payload.workflow }}"
-        ATTEMPT_NUM="${{ github.event.client_payload.attempt }}"
-
-        echo "🔄 Executing retry for workflow: $WORKFLOW_NAME"
-        echo "📊 Original run ID: $RUN_ID"
-        echo "🔢 Attempt: $ATTEMPT_NUM/${{ inputs.max-attempts }}"
-
-        # Pre-retry command
-        if [ -n "${{ inputs.pre-retry-command }}" ]; then
-          echo "🧹 Running pre-retry command..."
-          eval "${{ inputs.pre-retry-command }}" || echo "::warning::Pre-retry command failed, continuing..."
-        fi
-
-        # Wait before retry
-        if [ "${{ inputs.retry-wait-seconds }}" != "0" ]; then
-          echo "⏳ Waiting ${{ inputs.retry-wait-seconds }} seconds before retry..."
-          sleep ${{ inputs.retry-wait-seconds }}
-        fi
-
-        # Wait for original run to complete
-        echo "⏳ Waiting for original run to complete..."
-        gh run watch $RUN_ID > /dev/null 2>&1 || true
-
-        # Check if a specific job name was requested
-        REQUESTED_JOB_NAME="${{ github.event.client_payload.job_name }}"
-
-        # Debug: Show all jobs and their status
-        echo "🔍 Jobs in original run:"
-        gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
-          --jq '.jobs[] | "  - \(.name): \(.conclusion // .status) (ID: \(.id))"'
-
-        if [ -n "$REQUESTED_JOB_NAME" ]; then
-          echo "🎯 Looking for specific job: $REQUESTED_JOB_NAME"
-
-          # Find the specific job by name
-          SPECIFIC_JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
-            --jq ".jobs[] | select(.name == \"$REQUESTED_JOB_NAME\") | .id")
-
-          if [ -n "$SPECIFIC_JOB_ID" ]; then
-            echo "🔄 Re-running specific job: $REQUESTED_JOB_NAME (ID: $SPECIFIC_JOB_ID)"
-            gh api "repos/${{ github.repository }}/actions/jobs/$SPECIFIC_JOB_ID/rerun" -X POST
-            echo "✅ Specific job rerun triggered"
-          else
-            echo "::error::❌ Job '$REQUESTED_JOB_NAME' not found in workflow run $RUN_ID"
-            echo "::error::Available jobs:"
-            gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
-              --jq '.jobs[] | "::error::  - \(.name) (ID: \(.id))"'
-            echo "::error::This might happen if the job name contains special characters or if the original run is too old"
-            exit 1
-          fi
-        else
-          echo "::error::❌ No specific job name provided in dispatch payload"
-          echo "::error::Cannot determine which job to retry without explicit job name"
-          echo "::error::This action requires a specific job to target for retry"
-          exit 1
-        fi
-
-        echo "✅ Re-run triggered successfully"
-        echo "🔗 Monitor at: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
-
     # Show max attempts reached message
     - name: Max attempts reached
       if: >
-        job.status == 'failure' &&
-        github.event_name != 'repository_dispatch' &&
+        failure() && 
         github.run_attempt >= fromJSON(inputs.max-attempts) &&
         inputs.force-retry != 'true'
       shell: bash
@@ -121,7 +49,7 @@ runs:
         echo "❌ No more retries will be attempted for this workflow run"
         echo "💡 To retry again, manually re-run the workflow or push a new commit"
         echo "💡 Or set 'force-retry: true' to override this limit (use with caution)"
-
+        
         # Add to step summary
         echo "## 🚨 Retry Limit Reached" >> $GITHUB_STEP_SUMMARY
         echo "- **Current Attempt:** ${{ github.run_attempt }}" >> $GITHUB_STEP_SUMMARY
@@ -130,12 +58,15 @@ runs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "💡 **To retry:** Manually re-run this workflow or push a new commit" >> $GITHUB_STEP_SUMMARY
         echo "💡 **Or:** Set \`force-retry: true\` to override this limit (use with caution)" >> $GITHUB_STEP_SUMMARY
+        
+        # Exit with failure to ensure job shows as failed (red)
+        echo "🔴 Exiting with failure status to show job as failed"
+        exit 1
 
     # Detect failure and trigger retry (when used in regular jobs)
     - name: Trigger retry on failure
       if: >
-        job.status == 'failure' &&
-        github.event_name != 'repository_dispatch' &&
+        failure() && 
         (github.run_attempt < fromJSON(inputs.max-attempts) || inputs.force-retry == 'true')
       shell: bash
       env:
@@ -167,29 +98,29 @@ runs:
           echo "🎯 Using provided job name: $JOB_TO_RETRY"
         else
           echo "🔍 Auto-detecting current job name using runner matching..."
-
+          
           # Use the brilliant runner name approach to find the current job
           echo "🔍 Current runner: $RUNNER_NAME"
-
+          
           # Get jobs and find the one running on this specific runner
           gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
             --paginate > /tmp/jobs.json
-
+          
           # Find job ID by matching runner name
           JOB_ID=$(jq -r --arg rn "$RUNNER_NAME" '
             .jobs[]
             | select(.runner_name == $rn)
             | .id
           ' /tmp/jobs.json | head -n1)
-
+          
           if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
             # Get the job name using the found job ID
             JOB_TO_RETRY=$(jq -r --arg id "$JOB_ID" '
-              .jobs[]
-              | select(.id == ($id|tonumber))
+              .jobs[] 
+              | select(.id == ($id|tonumber)) 
               | .name
             ' /tmp/jobs.json)
-
+            
             if [ -n "$JOB_TO_RETRY" ] && [ "$JOB_TO_RETRY" != "null" ]; then
               echo "✅ Auto-detected job name: $JOB_TO_RETRY"
               echo "🔍 Job ID: $JOB_ID"
@@ -205,69 +136,56 @@ runs:
             echo "::error::Please provide explicit 'job-name' input to the action"
             exit 1
           fi
-
+          
           # Cleanup
           rm -f /tmp/jobs.json
         fi
 
-        # Trigger retry via repository_dispatch
-        echo "🚀 Dispatching retry for job: ${JOB_TO_RETRY:-all failed jobs}"
+        # Pre-retry command
+        if [ -n "${{ inputs.pre-retry-command }}" ]; then
+          echo "🧹 Running pre-retry command..."
+          eval "${{ inputs.pre-retry-command }}" || echo "::warning::Pre-retry command failed, continuing..."
+        fi
+        
+        # Wait before retry
+        if [ "${{ inputs.retry-wait-seconds }}" != "0" ]; then
+          echo "⏳ Waiting ${{ inputs.retry-wait-seconds }} seconds before retry..."
+          sleep ${{ inputs.retry-wait-seconds }}
+        fi
 
-        # Build JSON payload using jq with specific job name
-        PAYLOAD=$(jq -n \
-          --arg event_type "auto-retry" \
-          --arg run_id "${{ github.run_id }}" \
-          --arg workflow "${{ github.workflow }}" \
-          --arg ref "${{ github.ref }}" \
-          --arg job_name "$JOB_TO_RETRY" \
-          --argjson attempt ${{ github.run_attempt }} \
-          '{
-            event_type: $event_type,
-            client_payload: {
-              run_id: $run_id,
-              workflow: $workflow,
-              ref: $ref,
-              attempt: $attempt,
-              job_name: $job_name
-            }
-          }')
-
-        curl -sS -X POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer $GH_TOKEN" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          "https://api.github.com/repos/${{ github.repository }}/dispatches" \
-          -d "$PAYLOAD"
-
-        if [ $? -eq 0 ]; then
-          echo "✅ Retry dispatched successfully"
-          echo "🔗 Monitor retries at: https://github.com/${{ github.repository }}/actions"
+        # Wait for current workflow run to complete
+        echo "⏳ Waiting for current run to complete..."
+        gh run watch "${{ github.run_id }}" > /dev/null 2>&1 || true
+        
+        # Find the specific job ID for the job to retry
+        echo "🔍 Finding job ID for: $JOB_TO_RETRY"
+        SPECIFIC_JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+          --jq ".jobs[] | select(.name == \"$JOB_TO_RETRY\") | .id")
+        
+        if [ -n "$SPECIFIC_JOB_ID" ]; then
+          echo "🎯 Found job ID: $SPECIFIC_JOB_ID"
+          echo "🔄 Re-running specific job: $JOB_TO_RETRY"
+          gh api "repos/${{ github.repository }}/actions/jobs/$SPECIFIC_JOB_ID/rerun" -X POST
+          echo "✅ Job $JOB_TO_RETRY (ID: $SPECIFIC_JOB_ID) rerun triggered"
+          echo "🔗 Monitor at: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          # Exit with failure to ensure job shows as failed (red) despite continue-on-error
+          echo "🔴 Exiting with failure status to show job as failed"
+          exit 1
         else
-          echo "::error::❌ Failed to dispatch retry"
+          echo "::error::❌ Could not find job '$JOB_TO_RETRY' in current run"
+          echo "::error::Available jobs:"
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '.jobs[] | "::error::  - \(.name) (ID: \(.id))"'
           exit 1
         fi
 
-    # Show retry information if this run was triggered by retry
-    - name: Show retry info
-      if: github.event.client_payload.run_id != ''
-      shell: bash
-      run: |
-        echo "ℹ️ This is a retry of run ${{ github.event.client_payload.run_id }}"
-        echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.client_payload.run_id }}"
-
-        # Add to step summary
-        echo "## 🔄 Retry Information" >> $GITHUB_STEP_SUMMARY
-        echo "- **Original Run:** [${{ github.event.client_payload.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.client_payload.run_id }})" >> $GITHUB_STEP_SUMMARY
-        echo "- **Retry Attempt:** ${{ github.event.client_payload.attempt }}" >> $GITHUB_STEP_SUMMARY
-
-    # Provide helpful setup instructions if repository_dispatch is not configured
+    # Provide helpful setup instructions if something fails
     - name: Check setup
       if: failure() && github.run_attempt >= fromJSON(inputs.max-attempts)
       shell: bash
       run: |
         echo "::warning::🚨 Max retry attempts reached (${{ inputs.max-attempts }})"
-        echo "::notice::💡 To enable auto-retry, add this to your workflow triggers:"
-        echo "::notice::   on:"
-        echo "::notice::     push:"
-        echo "::notice::     repository_dispatch:"
-        echo "::notice::       types: [auto-retry]"
+        echo "::notice::💡 The auto-retry action uses direct job rerun API calls"
+        echo "::notice::💡 Each failed job will retry itself individually"
+        echo "::notice::💡 Check the GitHub Actions logs for detailed retry information"
