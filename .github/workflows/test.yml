@@ -157,13 +157,13 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎲 About Flaky Tests" >> $GITHUB_STEP_SUMMARY
         echo "- **Pass rates**: 70%, 80%, 90% (designed to fail occasionally)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Retry strategy**: Automatic retry with max 5 attempts" >> $GITHUB_STEP_SUMMARY
+        echo "- **Retry strategy**: Automatic retry with max 10 attempts" >> $GITHUB_STEP_SUMMARY
         echo "- **Real-world simulation**: Demonstrates CI/CD resilience patterns" >> $GITHUB_STEP_SUMMARY
         echo "- **Expected behavior**: Failures automatically trigger retry workflow" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔄 Automatic Retry Benefits" >> $GITHUB_STEP_SUMMARY
         echo "- **Separate runs**: Each retry creates its own workflow run" >> $GITHUB_STEP_SUMMARY
-        echo "- **Max attempts**: Automatically stops after 5 attempts to prevent infinite loops" >> $GITHUB_STEP_SUMMARY
+        echo "- **Max attempts**: Automatically stops after 10 attempts to prevent infinite loops" >> $GITHUB_STEP_SUMMARY
         echo "- **Better tracking**: GitHub API tracks each attempt individually" >> $GITHUB_STEP_SUMMARY
         echo "- **Clear logs**: Each retry has isolated logs and artifacts" >> $GITHUB_STEP_SUMMARY
         echo "- **Improved visibility**: Easier to see failure patterns and success rates" >> $GITHUB_STEP_SUMMARY
@@ -172,7 +172,7 @@ jobs:
     - name: Trigger automatic retry
       if: |
         (needs.test.result == 'failure') && 
-        fromJSON(github.run_attempt) < 5
+        fromJSON(github.run_attempt) < 10
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
