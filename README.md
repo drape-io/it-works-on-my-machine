@@ -220,6 +220,28 @@ jobs:
           command: just test-ci
 ```
 
+### Automated PR Retry System
+
+This repository includes an automated system that creates PRs, runs tests, and retries failed jobs:
+
+- **Workflow**: `.github/workflows/auto-flaky-pr.yml` runs every 30 minutes
+- **Retry Script**: `scripts/check-and-retry-failed-jobs.sh` handles failure detection and retry triggering
+- **Auto-merge**: PRs are automatically merged when all tests pass
+
+**Required GitHub Token Permissions:**
+
+The `PERSONAL_ACCESS_TOKEN` secret must have these scopes:
+- ✅ `repo` - Full control of private repositories
+- ✅ `workflow` - Update GitHub Action workflows (required for triggering retries)
+- ✅ `actions: write` - Write access to GitHub Actions
+
+**Without the `workflow` scope**, the retry mechanism will fail with:
+```
+HTTP 403: Resource not accessible by personal access token
+```
+
+See `scripts/README.md` for detailed documentation on the retry mechanism.
+
 ## Understanding the Architecture
 
 ### Flakiness Design

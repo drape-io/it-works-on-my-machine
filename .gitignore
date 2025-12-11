@@ -132,3 +132,4 @@ jest-junit.xml
 # Editor/IDE
 # .idea/
 # .vscode/
+.envrc

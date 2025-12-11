@@ -65,38 +65,12 @@ jobs:
             else
               echo "⏳ PR #$pr_number not ready to merge (status: $pr_status)"
 
-              # Check for failed workflow runs and rerun them
-              echo "🔍 Checking for failed jobs to rerun..."
+              # Use the check-and-retry script to handle failed jobs
+              # Script handles errors gracefully, but use || true for safety
+              ./scripts/check-and-retry-failed-jobs.sh "$pr_number" "${{ github.repository }}" false || true
 
-              # Get the latest workflow run for this PR
-              latest_run_id=$(gh api "repos/${{ github.repository }}/actions/runs" \
-                --jq ".workflow_runs[] | select(.head_branch == \"$pr_branch\" and .event == \"pull_request\") | .id" \
-                | head -1)
-
-              if [ -n "$latest_run_id" ]; then
-                echo "📋 Latest workflow run ID: $latest_run_id"
-
-                # Check if there are any failed jobs in the latest run
-                failed_jobs=$(gh api "repos/${{ github.repository }}/actions/runs/$latest_run_id/jobs" \
-                  --jq '.jobs[] | select(.conclusion == "failure") | .name' | wc -l)
-
-                if [ "$failed_jobs" -gt 0 ]; then
-                  echo "🔄 Found $failed_jobs failed job(s), triggering retry..."
-                  echo "🔗 Original run: https://github.com/${{ github.repository }}/actions/runs/$latest_run_id"
-
-                  # Trigger the retry workflow
-                  gh workflow run retry.yml --field run_id=$latest_run_id
-
-                  echo "✅ Retry workflow triggered for failed jobs"
-                  echo "💡 Will check merge status again in next cycle"
-                else
-                  echo "ℹ️ No failed jobs found - tests may still be running"
-                  echo "💡 Branch updated - will check next cycle"
-                fi
-              else
-                echo "ℹ️ No workflow runs found for this PR branch"
-                echo "💡 Branch updated - tests may be starting, will check next cycle"
-              fi
+              echo ""
+              echo "💡 Will check merge status again in next cycle (every 30 minutes)"
             fi
           else
             echo "📝 No existing automated PR found"
