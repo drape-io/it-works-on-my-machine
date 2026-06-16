@@ -178,5 +178,19 @@ jobs:
       run: |
         echo "🔄 Some tests failed, triggering automatic retry (attempt ${{ github.run_attempt }}/20)"
         echo "📊 Run ID: ${{ github.run_id }}"
-        gh workflow run retry.yml --field run_id=${{ github.run_id }}
+        # Retry the dispatch itself with backoff. The dispatch API occasionally
+        # returns transient 5xx errors; without this loop a single failure
+        # silently breaks the retry chain and wedges the PR until the scheduled
+        # backstop recovers it.
+        for attempt in 1 2 3 4 5; do
+          if gh workflow run retry.yml --field run_id=${{ github.run_id }}; then
+            echo "✅ Retry workflow dispatched (try $attempt)"
+            exit 0
+          fi
+          echo "⚠️ Dispatch attempt $attempt failed, retrying in $((attempt * 10))s..."
+          sleep $((attempt * 10))
+        done
+        echo "❌ Failed to dispatch retry workflow after 5 attempts"
+        echo "💡 The scheduled auto-merge job will retry as a backstop"
+        exit 1
 

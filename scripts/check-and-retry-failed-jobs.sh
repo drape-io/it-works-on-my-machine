@@ -129,28 +129,33 @@ if [ "$DRY_RUN" = "true" ]; then
   echo "💡 To actually trigger retry, run without dry_run flag or set it to 'false'"
 else
   echo ""
-  echo "🚀 Triggering retry workflow..."
+  echo "🚀 Re-running failed jobs for run $latest_run_id..."
 
-  # Try to trigger retry, but don't fail if it doesn't work (e.g., token permissions)
+  # Re-run the failed jobs directly instead of dispatching retry.yml via
+  # workflow_dispatch. The dispatch endpoint (POST .../workflows/{id}/dispatches)
+  # requires the classic 'workflow' token scope, which PERSONAL_ACCESS_TOKEN does
+  # not have -- it returns HTTP 403 "Resource not accessible by personal access
+  # token", which silently wedges the PR forever. The rerun-failed-jobs endpoint
+  # only needs 'actions: write', already granted by the token's 'repo' scope. The
+  # run is already completed here, so we can re-run it directly without retry.yml.
+  # Don't fail the whole job if the rerun doesn't work.
   set +e
-  retry_output=$(gh workflow run retry.yml \
-    --repo "$REPOSITORY" \
-    --field run_id="$latest_run_id" 2>&1)
+  retry_output=$(gh run rerun "$latest_run_id" --failed --repo "$REPOSITORY" 2>&1)
   retry_exit_code=$?
   set -e
 
   if [ $retry_exit_code -eq 0 ]; then
-    echo "✅ Retry workflow triggered successfully"
-    echo "💡 A new workflow run will be created to retry the failed jobs"
-    echo "🔗 Monitor at: https://github.com/$REPOSITORY/actions/workflows/retry.yml"
+    echo "✅ Failed jobs re-run successfully"
+    echo "💡 A new attempt has started for the failed jobs"
+    echo "🔗 Monitor at: https://github.com/$REPOSITORY/actions/runs/$latest_run_id"
   else
-    echo "⚠️ Failed to trigger retry workflow (exit code: $retry_exit_code)"
+    echo "⚠️ Failed to re-run failed jobs (exit code: $retry_exit_code)"
     echo "Error output:"
     echo "$retry_output" | sed 's/^/  /'
     echo ""
     echo "Common causes:"
-    echo "  - Token lacks 'workflow' permission (HTTP 403)"
-    echo "  - Token lacks 'actions: write' scope"
+    echo "  - Token lacks 'actions: write' scope (HTTP 403)"
+    echo "  - Run is older than 30 days and can no longer be re-run"
     echo ""
     echo "💡 Continuing anyway - tests may have already passed"
     echo "💡 Check if PR is mergeable in the next cycle"
