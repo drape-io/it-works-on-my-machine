@@ -171,7 +171,8 @@ jobs:
 
     - name: Trigger automatic retry
       if: |
-        (needs.test.result == 'failure') && 
+        !cancelled() &&
+        (needs.test.result == 'failure' || needs.test.result == 'cancelled') && 
         fromJSON(github.run_attempt) < 20
       env:
         GH_TOKEN: ${{ github.token }}

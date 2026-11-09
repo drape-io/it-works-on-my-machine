@@ -67,7 +67,7 @@ This means your token lacks the `workflow` scope. Update the token permissions a
 2. **Find workflow runs**: Uses `gh pr checks` to find workflow runs for the PR
    - More reliable than querying all workflow runs
    - Works for PRs of any age
-3. **Check for failures**: Queries the workflow run jobs to find failures
+3. **Check for failures**: Queries the workflow run jobs for failed, cancelled, or timed-out jobs
 4. **Trigger retry**: If failures found and not in dry run mode, triggers `retry.yml` workflow
 5. **Error handling**: Gracefully handles errors (e.g., token permission issues) and exits 0
 
