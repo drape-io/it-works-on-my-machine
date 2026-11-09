@@ -95,10 +95,10 @@ if [ "$run_status" != "completed" ] && [ "$run_status" != "in_progress" ]; then
   exit 0
 fi
 
-# Check if there are any failed jobs in the latest run
+# Retryable job conclusions; keep in sync with .github/workflows/retry.yml.
 echo "🔍 Checking for failed jobs..."
 failed_jobs_list=$(gh api "repos/$REPOSITORY/actions/runs/$latest_run_id/jobs" \
-  --jq '.jobs[] | select(.conclusion == "failure") | .name')
+  --jq '.jobs[] | select(.conclusion | IN("failure", "cancelled", "timed_out")) | .name')
 
 # Count non-empty lines (handle empty string case)
 if [ -z "$failed_jobs_list" ]; then
